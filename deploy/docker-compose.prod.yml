@@ -1,0 +1,28 @@
+services:
+  ebs:
+    build:
+      context: ..
+      dockerfile: ebs/Dockerfile
+    env_file:
+      - ../.env.production
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - ebs
+
+volumes:
+  caddy_data:
+  caddy_config:
+

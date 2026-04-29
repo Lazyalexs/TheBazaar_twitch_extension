@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Bazaar Live Dashboard</title>
+    <link rel="stylesheet" href="./assets/app.css" />
+  </head>
+  <body class="dashboard">
+    <main class="dashboard-shell">
+      <section class="dashboard-header">
+        <div>
+          <p class="eyebrow">Broadcaster</p>
+          <h1>The Bazaar EBS</h1>
+        </div>
+        <button id="checkHealth" type="button">Check EBS</button>
+      </section>
+
+      <label>
+        EBS URL
+        <input id="ebsUrl" value="http://127.0.0.1:8000" />
+      </label>
+      <label>
+        Channel ID
+        <input id="channelId" value="dev-channel" />
+      </label>
+
+      <section class="diagnostics" id="diagnostics">Not checked yet.</section>
+    </main>
+
+    <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
+    <script type="module" src="./src/live.js"></script>
+  </body>
+</html>
+

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Bazaar Extension Config</title>
+    <link rel="stylesheet" href="./assets/app.css" />
+  </head>
+  <body class="dashboard">
+    <main class="dashboard-shell">
+      <section class="dashboard-header">
+        <div>
+          <p class="eyebrow">Setup</p>
+          <h1>The Bazaar Extension</h1>
+        </div>
+      </section>
+
+      <label>
+        EBS URL
+        <input id="ebsUrl" value="http://127.0.0.1:8000" />
+      </label>
+      <button id="saveConfig" type="button">Save</button>
+      <button id="verifySetup" type="button">Verify Twitch Setup</button>
+      <section class="diagnostics" id="diagnostics">Local setup only.</section>
+    </main>
+
+    <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
+    <script type="module" src="./src/config.js"></script>
+  </body>
+</html>

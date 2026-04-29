@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "patch": "13.3-dev",
+  "generatedAt": "2026-04-29T00:00:00Z",
+  "source": "prototype",
+  "files": {
+    "items": "items.min.json"
+  }
+}
+
