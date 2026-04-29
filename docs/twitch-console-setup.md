@@ -52,6 +52,15 @@ Later, after DNS and HTTPS are ready, add the production EBS origin:
 https://api.thebazaar-twitch.online
 ```
 
+For hosted domain testing, also allow the extension page origin in the image
+domain list:
+
+```text
+https://api.thebazaar-twitch.online
+```
+
+Card art is proxied through that same origin at `/bazaar-art/...`.
+
 ## Asset Hosting
 
 For Local Test from your workstation, run:

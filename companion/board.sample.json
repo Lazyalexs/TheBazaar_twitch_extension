@@ -1,0 +1,41 @@
+{
+  "patch": "13.3",
+  "hero": "vanessa",
+  "day": 7,
+  "gold": 11,
+  "health": 82,
+  "maxHealth": 100,
+  "phase": "combat",
+  "board": [
+    {
+      "slot": 0,
+      "id": "dishwasher",
+      "tier": "gold",
+      "enchants": [],
+      "cd": 7,
+      "ammo": null,
+      "bbox": {
+        "x": 0.315,
+        "y": 0.52,
+        "w": 0.112,
+        "h": 0.2
+      }
+    },
+    {
+      "slot": 1,
+      "id": "cutlass",
+      "tier": "silver",
+      "enchants": [],
+      "cd": 4.5,
+      "ammo": null,
+      "bbox": {
+        "x": 0.43,
+        "y": 0.52,
+        "w": 0.105,
+        "h": 0.2
+      }
+    }
+  ],
+  "stash": [],
+  "skills": []
+}

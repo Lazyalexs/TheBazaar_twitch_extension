@@ -38,6 +38,16 @@ Open:
 http://127.0.0.1:8000/health
 ```
 
+## 2a. Refresh BazaarDB Data
+
+The checked-in `extension/data/items.min.json` can be refreshed from BazaarDB:
+
+```powershell
+node tools\sync-bazaardb-data.mjs
+```
+
+This should be done when the game patch changes.
+
 ## 3. Send Fake State
 
 In another terminal:
@@ -56,6 +66,12 @@ The latest accepted state is available at:
 
 ```text
 http://127.0.0.1:8000/v1/channels/dev-channel/latest
+```
+
+To send a specific board layout, edit `companion/board.sample.json` and run:
+
+```powershell
+.\.venv\Scripts\python companion\file_companion.py companion\board.sample.json --once
 ```
 
 ## 4. Preview Viewer

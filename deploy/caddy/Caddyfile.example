@@ -7,6 +7,18 @@ api.thebazaar-twitch.online {
     Referrer-Policy "no-referrer"
   }
 
+  handle_path /bazaar-art/s.bazaardb.gg/* {
+    reverse_proxy https://s.bazaardb.gg {
+      header_up Host s.bazaardb.gg
+    }
+  }
+
+  handle_path /bazaar-art/i.bazaardb.gg/* {
+    reverse_proxy https://i.bazaardb.gg {
+      header_up Host i.bazaardb.gg
+    }
+  }
+
   handle /health {
     reverse_proxy ebs:8000
   }

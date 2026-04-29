@@ -29,7 +29,7 @@
       },
       {
         "slot": 1,
-        "id": "small_cutlass",
+        "id": "cutlass",
         "tier": "silver",
         "enchants": ["burn"],
         "cd": 4.5,
@@ -44,8 +44,8 @@
     ],
     "stash": [
       {
-        "id": "spare_rigging",
-        "tier": "bronze"
+        "id": "crow_s_nest",
+        "tier": "silver"
       }
     ],
     "skills": []

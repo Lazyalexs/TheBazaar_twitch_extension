@@ -25,7 +25,15 @@ const state = {
 async function loadReferenceData() {
   const response = await fetch("./data/items.min.json");
   const items = await response.json();
-  state.items = new Map(items.map((item) => [item.id, item]));
+  state.items = new Map();
+  for (const item of items) {
+    for (const key of [item.id, item.cardId, item.bazaarDbId, item.name, ...(item.aliases ?? [])]) {
+      const normalized = normalizeItemId(key);
+      if (normalized) {
+        state.items.set(normalized, item);
+      }
+    }
+  }
 }
 
 function setStatus(text) {
@@ -36,20 +44,51 @@ function tierLabel(value) {
   return value ? `${titleCase(value)}+` : "Item";
 }
 
+function normalizeItemId(value) {
+  return String(value ?? "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, " and ")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function itemRef(id) {
+  return state.items.get(normalizeItemId(id));
+}
+
+function uniqueLabels(items) {
+  const seen = new Set();
+  const labels = [];
+  for (const item of items) {
+    const value = String(item ?? "").trim();
+    const key = value.toLowerCase();
+    if (value && !seen.has(key)) {
+      seen.add(key);
+      labels.push(value);
+    }
+  }
+  return labels;
+}
+
 function tagsFor(ref, itemState) {
   const tags = [
     tierLabel(itemState.tier ?? ref?.baseTier),
     ...(ref?.tags ?? []),
-    ...(ref?.heroes ?? []),
   ];
-  return tags.filter(Boolean);
+  return uniqueLabels(tags);
 }
 
 function renderArt(ref) {
   const art = document.createElement("div");
   art.className = "tooltip-art";
-  if (ref?.image) {
-    art.style.backgroundImage = `url("${ref.image}")`;
+  const image =
+    window.location.protocol === "https:" || !ref?.imageSource
+      ? ref?.image
+      : ref?.imageSource;
+  if (image) {
+    art.style.backgroundImage = `url("${image}")`;
   }
   return art;
 }
@@ -65,21 +104,25 @@ function renderPillList(items) {
   return wrap;
 }
 
-function renderEffects(ref) {
+function renderEffects(ref, itemState) {
   const effects = document.createElement("section");
   effects.className = "tooltip-effects";
 
   const cooldown = document.createElement("div");
   cooldown.className = "tooltip-cooldown";
   const value = document.createElement("strong");
-  value.textContent = formatValue(ref?.cooldown, "-");
+  value.textContent = formatValue(itemState.cd ?? ref?.cooldown, "-");
   const unit = document.createElement("span");
   unit.textContent = "SEC";
   cooldown.append(value, unit);
 
   const lines = document.createElement("div");
   lines.className = "tooltip-lines";
-  for (const line of ref?.effects ?? [ref?.tooltip ?? "Unknown item data for this patch."]) {
+  const effects =
+    ref?.effects?.length
+      ? ref.effects
+      : [ref?.tooltip ?? "Unknown item data for this patch."];
+  for (const line of effects) {
     const paragraph = document.createElement("p");
     paragraph.textContent = line;
     lines.append(paragraph);
@@ -90,7 +133,7 @@ function renderEffects(ref) {
 }
 
 function renderTooltip(itemState, anchor) {
-  const ref = state.items.get(itemState.id);
+  const ref = itemRef(itemState.id);
   window.clearTimeout(state.hideTooltipTimer);
   refs.tooltip.hidden = false;
   refs.tooltip.innerHTML = "";
@@ -102,11 +145,8 @@ function renderTooltip(itemState, anchor) {
   typeRow.className = "tooltip-row";
   const typeLabel = document.createElement("span");
   typeLabel.textContent = "TYPES";
-  typeRow.append(typeLabel, renderPillList(ref?.types ?? [ref?.type ?? "Item"]));
-
-  const text = document.createElement("section");
-  text.className = "tooltip-text";
-  text.textContent = ref?.tooltip ?? "Unknown item data for this patch.";
+  const types = ref?.types?.length ? ref.types : [ref?.type ?? "Item"];
+  typeRow.append(typeLabel, renderPillList(types));
 
   const tagRow = document.createElement("section");
   tagRow.className = "tooltip-row";
@@ -114,7 +154,14 @@ function renderTooltip(itemState, anchor) {
   tagLabel.textContent = "TAGS";
   tagRow.append(tagLabel, renderPillList(tagsFor(ref, itemState)));
 
-  refs.tooltip.append(title, renderArt(ref), typeRow, renderEffects(ref), text, tagRow);
+  refs.tooltip.append(title, renderArt(ref), typeRow, renderEffects(ref, itemState));
+  if (ref?.tooltip) {
+    const text = document.createElement("section");
+    text.className = "tooltip-text";
+    text.textContent = ref.tooltip;
+    refs.tooltip.append(text);
+  }
+  refs.tooltip.append(tagRow);
   positionTooltip(anchor);
 }
 
@@ -172,7 +219,7 @@ function renderHotspots(payload) {
   );
   for (const [index, itemState] of (payload.board ?? []).entries()) {
     const box = itemState.bbox ?? fallbackBox(index);
-    const ref = state.items.get(itemState.id);
+    const ref = itemRef(itemState.id);
     const button = document.createElement("button");
     button.className = "hotspot";
     button.type = "button";

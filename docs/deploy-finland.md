@@ -79,6 +79,7 @@ Check:
 ```bash
 curl https://api.thebazaar-twitch.online/health
 curl https://api.thebazaar-twitch.online/viewer.html
+curl https://api.thebazaar-twitch.online/bazaar-art/s.bazaardb.gg/v1/z13.0/88771f1a4ca12107ef301b0544325e893372db75@256.webp?v=6 -I
 ```
 
 ## Twitch Console
@@ -98,3 +99,11 @@ Config Path: config.html
 Live Config Path: live.html
 Video Fullscreen Path: viewer.html
 ```
+
+The Caddy config proxies BazaarDB card art under:
+
+```text
+https://api.thebazaar-twitch.online/bazaar-art/...
+```
+
+This keeps extension image loading on the same HTTPS origin during Twitch tests.
