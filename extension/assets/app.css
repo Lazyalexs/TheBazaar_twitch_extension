@@ -239,13 +239,13 @@ h1 {
 .tooltip h2 {
   background: #1f1b1a;
   border-bottom: 1px solid rgba(246, 241, 232, 0.12);
-  font-size: 17px;
+  font-size: 15px;
   margin: 0;
   padding: 10px 12px;
 }
 
 .tooltip-art {
-  aspect-ratio: 1.68;
+  aspect-ratio: 1.9;
   border: 2px solid #ffd51e;
   border-radius: 5px;
   margin: 8px;
@@ -265,17 +265,17 @@ h1 {
 
 .tooltip-row {
   display: grid;
-  grid-template-columns: 72px 1fr;
-  gap: 12px;
-  padding: 10px 12px;
+  grid-template-columns: 58px 1fr;
+  gap: 9px;
+  padding: 8px 10px;
 }
 
 .tooltip-row > span {
   align-self: center;
   border-right: 1px solid rgba(246, 241, 232, 0.12);
   color: #c9bbb1;
-  font-size: 12px;
-  padding-right: 10px;
+  font-size: 10px;
+  padding-right: 8px;
   text-transform: uppercase;
 }
 
@@ -290,9 +290,9 @@ h1 {
   border-radius: 4px;
   background: #4c4649;
   color: #f6f1e8;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1;
-  padding: 7px 10px;
+  padding: 6px 8px;
 }
 
 .tooltip-pills span:first-child {
@@ -302,9 +302,9 @@ h1 {
 
 .tooltip-effects {
   display: grid;
-  grid-template-columns: 72px 1fr;
-  gap: 12px;
-  padding: 12px;
+  grid-template-columns: 58px 1fr;
+  gap: 9px;
+  padding: 10px;
 }
 
 .tooltip-cooldown {
@@ -317,7 +317,7 @@ h1 {
 
 .tooltip-cooldown strong {
   display: block;
-  font-size: 22px;
+  font-size: 18px;
 }
 
 .tooltip-cooldown span {
@@ -333,13 +333,13 @@ h1 {
 .tooltip-lines p,
 .tooltip-text {
   color: #fff8ee;
-  font-size: 15px;
+  font-size: 13px;
   line-height: 1.38;
   margin: 0;
 }
 
 .tooltip-text {
-  padding: 12px;
+  padding: 10px;
 }
 
 .dashboard-shell {

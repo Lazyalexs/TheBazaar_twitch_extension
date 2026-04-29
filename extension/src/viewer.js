@@ -19,6 +19,7 @@ const state = {
   localPollTimer: null,
   twitchChannelId: null,
   hideTooltipTimer: null,
+  debugUi: false,
 };
 
 async function loadReferenceData() {
@@ -120,8 +121,8 @@ function renderTooltip(itemState, anchor) {
 function positionTooltip(anchor) {
   const tooltip = refs.tooltip;
   const rect = anchor.getBoundingClientRect();
-  const width = Math.min(386, window.innerWidth - 16);
-  const height = Math.min(620, window.innerHeight - 16);
+  const width = Math.min(300, window.innerWidth - 16);
+  const height = Math.min(430, window.innerHeight - 16);
   tooltip.style.width = `${width}px`;
   tooltip.style.maxHeight = `${height}px`;
 
@@ -165,7 +166,10 @@ function fallbackBox(index) {
 
 function renderHotspots(payload) {
   refs.board.innerHTML = "";
-  refs.board.classList.toggle("debug-hotspots", payload.debugHotspots === true);
+  refs.board.classList.toggle(
+    "debug-hotspots",
+    state.debugUi && payload.debugHotspots === true,
+  );
   for (const [index, itemState] of (payload.board ?? []).entries()) {
     const box = itemState.bbox ?? fallbackBox(index);
     const ref = state.items.get(itemState.id);
@@ -289,6 +293,7 @@ async function init() {
   await loadReferenceData();
   const params = new URLSearchParams(window.location.search);
   if (params.get("debug") === "1") {
+    state.debugUi = true;
     document.body.classList.add("debug-ui");
   }
   const localPolling = startLocalPolling(params);

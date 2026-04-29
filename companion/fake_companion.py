@@ -20,7 +20,6 @@ def build_snapshot(seq: int, run_id: str) -> dict[str, Any]:
         "patch": "13.3-dev",
         "runId": run_id,
         "payload": {
-            "debugHotspots": True,
             "hero": "vanessa",
             "day": 7,
             "gold": gold,
@@ -35,7 +34,7 @@ def build_snapshot(seq: int, run_id: str) -> dict[str, Any]:
                     "enchants": [],
                     "cd": cooldown,
                     "ammo": None,
-                    "bbox": {"x": 0.18, "y": 0.55, "w": 0.1, "h": 0.18},
+                    "bbox": {"x": 0.315, "y": 0.52, "w": 0.112, "h": 0.2},
                 },
                 {
                     "slot": 1,
@@ -44,7 +43,7 @@ def build_snapshot(seq: int, run_id: str) -> dict[str, Any]:
                     "enchants": ["burn"],
                     "cd": 4.5,
                     "ammo": None,
-                    "bbox": {"x": 0.31, "y": 0.55, "w": 0.1, "h": 0.18},
+                    "bbox": {"x": 0.43, "y": 0.52, "w": 0.105, "h": 0.2},
                 },
             ],
             "stash": [{"id": "spare_rigging", "tier": "bronze"}],
