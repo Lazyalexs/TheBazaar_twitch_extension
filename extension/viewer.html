@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Bazaar Viewer</title>
+    <link rel="stylesheet" href="./assets/app.css" />
+  </head>
+  <body class="viewer">
+    <main class="overlay-shell">
+      <section class="topline">
+        <div>
+          <p class="eyebrow">The Bazaar</p>
+          <h1 id="hero">Waiting</h1>
+        </div>
+        <div class="status" id="status">No live data</div>
+      </section>
+
+      <section class="summary">
+        <div><span>Day</span><strong id="day">-</strong></div>
+        <div><span>Gold</span><strong id="gold">-</strong></div>
+        <div><span>Health</span><strong id="health">-</strong></div>
+        <div><span>Phase</span><strong id="phase">-</strong></div>
+      </section>
+
+      <section class="board" id="board" aria-label="Current board"></section>
+      <section class="tooltip" id="tooltip" hidden></section>
+    </main>
+
+    <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
+    <script type="module" src="./src/viewer.js"></script>
+  </body>
+</html>
+
