@@ -49,6 +49,7 @@ class SnapshotPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     hero: str | None = Field(default=None, max_length=64)
+    debugHotspots: bool = False
     day: int | None = Field(default=None, ge=0, le=99)
     gold: int | None = Field(default=None, ge=0, le=999)
     health: int | None = Field(default=None, ge=0, le=999)

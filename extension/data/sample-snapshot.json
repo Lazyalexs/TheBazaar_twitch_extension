@@ -6,6 +6,7 @@
   "patch": "13.3-dev",
   "runId": "demo-run",
   "payload": {
+    "debugHotspots": true,
     "hero": "vanessa",
     "day": 7,
     "gold": 14,

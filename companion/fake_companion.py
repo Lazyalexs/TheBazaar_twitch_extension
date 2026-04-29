@@ -20,6 +20,7 @@ def build_snapshot(seq: int, run_id: str) -> dict[str, Any]:
         "patch": "13.3-dev",
         "runId": run_id,
         "payload": {
+            "debugHotspots": True,
             "hero": "vanessa",
             "day": 7,
             "gold": gold,

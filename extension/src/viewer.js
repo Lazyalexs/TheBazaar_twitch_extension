@@ -165,6 +165,7 @@ function fallbackBox(index) {
 
 function renderHotspots(payload) {
   refs.board.innerHTML = "";
+  refs.board.classList.toggle("debug-hotspots", payload.debugHotspots === true);
   for (const [index, itemState] of (payload.board ?? []).entries()) {
     const box = itemState.bbox ?? fallbackBox(index);
     const ref = state.items.get(itemState.id);
@@ -176,6 +177,9 @@ function renderHotspots(payload) {
     button.style.top = `${box.y * 100}%`;
     button.style.width = `${box.w * 100}%`;
     button.style.height = `${box.h * 100}%`;
+    const label = document.createElement("span");
+    label.textContent = ref?.name ?? titleCase(itemState.id);
+    button.append(label);
     button.addEventListener("mouseenter", () => renderTooltip(itemState, button));
     button.addEventListener("focus", () => renderTooltip(itemState, button));
     button.addEventListener("mousemove", () => positionTooltip(button));
