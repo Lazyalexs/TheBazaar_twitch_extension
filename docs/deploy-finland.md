@@ -6,15 +6,22 @@ Target server:
 31.57.93.123
 ```
 
-This file is a deployment checklist for later. The current local prototype does
-not require the domain or certificates yet.
+This file deploys both pieces on one HTTPS origin:
+
+```text
+https://api.thebazaar-twitch.online/viewer.html
+https://api.thebazaar-twitch.online/config.html
+https://api.thebazaar-twitch.online/live.html
+https://api.thebazaar-twitch.online/health
+https://api.thebazaar-twitch.online/v1/...
+```
 
 ## DNS
 
 Create an `A` record:
 
 ```text
-api.<your-domain> -> 31.57.93.123
+api.thebazaar-twitch.online -> 31.57.93.123
 ```
 
 The domain does not have to be `.com`.
@@ -45,10 +52,16 @@ EBS_CORS_ORIGINS
 
 Use long random Companion tokens. Do not commit `.env.production`.
 
+Keep `EBS_DRY_RUN=1` until Twitch Extension secret and owner ID are configured.
+Switch to `EBS_DRY_RUN=0` only when real PubSub should be sent.
+
 ## Caddy
 
-Copy `deploy/caddy/Caddyfile.example` to `deploy/caddy/Caddyfile` and replace
-`api.example.com` with the real API domain.
+`deploy/caddy/Caddyfile` is already configured for:
+
+```text
+api.thebazaar-twitch.online
+```
 
 Caddy will request and renew certificates automatically after DNS points to the
 server.
@@ -64,7 +77,8 @@ docker compose -f deploy/docker-compose.prod.yml up -d --build
 Check:
 
 ```bash
-curl https://api.<your-domain>/health
+curl https://api.thebazaar-twitch.online/health
+curl https://api.thebazaar-twitch.online/viewer.html
 ```
 
 ## Twitch Console
@@ -73,9 +87,14 @@ Add the API domain to the Twitch Extension URL fetching allowlist before Hosted
 Test:
 
 ```text
-https://api.<your-domain>
+https://api.thebazaar-twitch.online
 ```
 
-The extension frontend files still need to be packaged and configured in Twitch
-Developer Console separately.
+For domain-based local testing in Twitch Developer Console, use:
 
+```text
+Testing Base URI: https://api.thebazaar-twitch.online/
+Config Path: config.html
+Live Config Path: live.html
+Video Fullscreen Path: viewer.html
+```

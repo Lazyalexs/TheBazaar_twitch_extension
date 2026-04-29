@@ -49,12 +49,12 @@ Allowlist for URL Fetching Domains:
 Later, after DNS and HTTPS are ready, add the production EBS origin:
 
 ```text
-https://api.<your-domain>
+https://api.thebazaar-twitch.online
 ```
 
 ## Asset Hosting
 
-For Local Test, run:
+For Local Test from your workstation, run:
 
 ```powershell
 .\tools\dev.ps1
@@ -71,6 +71,18 @@ Live Config Path: live.html
 ```
 
 The Testing Base URI must end with `/`.
+
+For domain-based testing after the Finland server is deployed, use:
+
+```text
+Testing Base URI: https://api.thebazaar-twitch.online/
+Type of Extension: Video - Fullscreen
+Video - Fullscreen View Path: viewer.html
+Config Path: config.html
+Live Config Path: live.html
+```
+
+The domain Testing Base URI must also end with `/`.
 
 Optional later:
 
@@ -134,4 +146,3 @@ Do not commit `.env`.
 - Life Cycle Management: https://dev.twitch.tv/docs/extensions/releasing-and-maintaining/
 - Extensions Reference: https://dev.twitch.tv/docs/extensions/reference/
 - Send Extension PubSub Message: https://dev.twitch.tv/docs/api/reference/#send-extension-pubsub-message
-
