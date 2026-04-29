@@ -24,10 +24,11 @@ def _snapshot(seq: int = 1):
             "board": [
                 {
                     "slot": 0,
-                    "id": "crow_s_nest",
+                    "id": "dishwasher",
                     "tier": "gold",
                     "enchants": [],
                     "cd": 3.2,
+                    "bbox": {"x": 0.1, "y": 0.2, "w": 0.08, "h": 0.12},
                 }
             ],
             "stash": [],
@@ -72,4 +73,3 @@ def test_companion_ingest_stores_latest_snapshot():
     latest_body = latest.json()
     assert latest_body["message"]["seq"] == 101
     assert latest_body["message"]["payload"]["hero"] == "vanessa"
-

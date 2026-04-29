@@ -29,11 +29,12 @@ def build_snapshot(seq: int, run_id: str) -> dict[str, Any]:
             "board": [
                 {
                     "slot": 0,
-                    "id": "crow_s_nest",
+                    "id": "dishwasher",
                     "tier": "gold",
                     "enchants": [],
                     "cd": cooldown,
                     "ammo": None,
+                    "bbox": {"x": 0.18, "y": 0.55, "w": 0.1, "h": 0.18},
                 },
                 {
                     "slot": 1,
@@ -42,6 +43,7 @@ def build_snapshot(seq: int, run_id: str) -> dict[str, Any]:
                     "enchants": ["burn"],
                     "cd": 4.5,
                     "ammo": None,
+                    "bbox": {"x": 0.31, "y": 0.55, "w": 0.1, "h": 0.18},
                 },
             ],
             "stash": [{"id": "spare_rigging", "tier": "bronze"}],

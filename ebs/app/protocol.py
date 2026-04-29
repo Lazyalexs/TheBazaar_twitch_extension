@@ -10,6 +10,15 @@ MessageType = Literal["snapshot", "diff", "heartbeat", "reset", "error"]
 Phase = Literal["menu", "shopping", "combat", "event", "game_over", "unknown"]
 
 
+class NormalizedBox(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    w: float = Field(gt=0, le=1)
+    h: float = Field(gt=0, le=1)
+
+
 class BoardItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -19,6 +28,7 @@ class BoardItem(BaseModel):
     enchants: list[str] = Field(default_factory=list, max_length=8)
     cd: float | None = Field(default=None, ge=0)
     ammo: int | None = Field(default=None, ge=0)
+    bbox: NormalizedBox | None = None
 
 
 class StashItem(BaseModel):
@@ -118,4 +128,3 @@ def compact_json(data: Any) -> str:
 
 def compact_size_bytes(data: Any) -> int:
     return len(compact_json(data).encode("utf-8"))
-

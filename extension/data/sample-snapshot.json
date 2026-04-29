@@ -15,11 +15,17 @@
     "board": [
       {
         "slot": 0,
-        "id": "crow_s_nest",
+        "id": "dishwasher",
         "tier": "gold",
         "enchants": [],
         "cd": 3.2,
-        "ammo": null
+        "ammo": null,
+        "bbox": {
+          "x": 0.18,
+          "y": 0.55,
+          "w": 0.1,
+          "h": 0.18
+        }
       },
       {
         "slot": 1,
@@ -27,7 +33,13 @@
         "tier": "silver",
         "enchants": ["burn"],
         "cd": 4.5,
-        "ammo": null
+        "ammo": null,
+        "bbox": {
+          "x": 0.31,
+          "y": 0.55,
+          "w": 0.1,
+          "h": 0.18
+        }
       }
     ],
     "stash": [
@@ -39,4 +51,3 @@
     "skills": []
   }
 }
-
