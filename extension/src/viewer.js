@@ -118,11 +118,11 @@ function renderEffects(ref, itemState) {
 
   const lines = document.createElement("div");
   lines.className = "tooltip-lines";
-  const effects =
+  const effectLines =
     ref?.effects?.length
       ? ref.effects
       : [ref?.tooltip ?? "Unknown item data for this patch."];
-  for (const line of effects) {
+  for (const line of effectLines) {
     const paragraph = document.createElement("p");
     paragraph.textContent = line;
     lines.append(paragraph);
