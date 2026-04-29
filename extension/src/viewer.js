@@ -17,6 +17,7 @@ const state = {
   latestRunId: null,
   latestEnvelope: null,
   localPollTimer: null,
+  twitchChannelId: null,
 };
 
 async function loadReferenceData() {
@@ -139,6 +140,27 @@ function startLocalPolling(params) {
   return true;
 }
 
+function startHostedFallbackPolling(channelId) {
+  if (state.localPollTimer || !channelId || window.location.protocol !== "https:") {
+    return;
+  }
+
+  setStatus("Polling EBS fallback");
+  const baseUrl = window.location.origin;
+  pollEbsLatest(baseUrl, channelId).catch(() => setStatus("Waiting for live data"));
+  state.localPollTimer = window.setInterval(() => {
+    pollEbsLatest(baseUrl, channelId).catch(() => setStatus("Waiting for live data"));
+  }, 1000);
+}
+
+function armHostedFallback() {
+  window.setTimeout(() => {
+    if (!state.latestEnvelope && state.twitchChannelId) {
+      startHostedFallbackPolling(state.twitchChannelId);
+    }
+  }, 1500);
+}
+
 async function init() {
   await loadReferenceData();
   const params = new URLSearchParams(window.location.search);
@@ -148,7 +170,11 @@ async function init() {
     window.Twitch.ext.listen("broadcast", (_target, _contentType, message) => {
       handleEnvelope(message);
     });
-    window.Twitch.ext.onAuthorized(() => setStatus("Connected to Twitch"));
+    window.Twitch.ext.onAuthorized((auth) => {
+      state.twitchChannelId = auth.channelId;
+      setStatus("Connected to Twitch");
+      armHostedFallback();
+    });
     window.Twitch.ext.onError(() => setStatus("Twitch helper error"));
   }
 
