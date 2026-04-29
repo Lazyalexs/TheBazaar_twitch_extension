@@ -284,6 +284,9 @@ function armHostedFallback() {
 async function init() {
   await loadReferenceData();
   const params = new URLSearchParams(window.location.search);
+  if (params.get("debug") === "1") {
+    document.body.classList.add("debug-ui");
+  }
   const localPolling = startLocalPolling(params);
 
   refs.tooltip.addEventListener("mouseenter", () => {

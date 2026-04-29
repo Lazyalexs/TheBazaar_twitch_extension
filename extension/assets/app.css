@@ -74,6 +74,19 @@ label {
   pointer-events: none;
 }
 
+.viewer .topline,
+.viewer .summary {
+  display: none;
+}
+
+.viewer.debug-ui .topline {
+  display: flex;
+}
+
+.viewer.debug-ui .summary {
+  display: grid;
+}
+
 .dashboard-header {
   display: flex;
   align-items: center;
@@ -328,4 +341,3 @@ h1 {
     width: calc(100vw - 16px) !important;
   }
 }
-
