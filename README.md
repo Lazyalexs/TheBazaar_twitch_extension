@@ -50,5 +50,6 @@ Docs:
 
 - [Architecture](docs/architecture.md)
 - [Local Development](docs/local-dev.md)
+- [Twitch Console Setup](docs/twitch-console-setup.md)
 - [Twitch EBS Notes](docs/twitch-ebs-notes.md)
 - [Finland Deployment](docs/deploy-finland.md)
