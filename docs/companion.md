@@ -100,28 +100,66 @@ The generated hover boxes can be calibrated without changing code:
   --pad-y 0.005
 ```
 
+For a 720p Twitch/OBS frame, the log Companion now uses the built-in `720p`
+box profile by default. The Companion converts these pixel values to normalized
+Twitch coordinates before publishing, so the viewer overlay still scales
+correctly when the player is resized:
+
+```powershell
+.\.venv\Scripts\python companion\log_companion.py `
+  --url https://api.thebazaar-twitch.online `
+  --channel 274185831 `
+  --token <companion-token> `
+  --stream-resolution auto `
+  --box-profile 720p
+```
+
+Use `--stream-resolution auto` to let the Companion try the local The Bazaar
+window size first and then fall back to `1280x720`. The exact card identity still
+comes from the game log (`InstanceId` -> `TemplateId` -> BazaarDB item), while
+the resolution only affects the normalized hover box geometry.
+
+If the OBS/game capture layout needs manual tuning, override the profile values:
+
+```powershell
+.\.venv\Scripts\python companion\log_companion.py `
+  --url https://api.thebazaar-twitch.online `
+  --channel 274185831 `
+  --token <companion-token> `
+  --stream-resolution 1280x720 `
+  --box-profile 720p `
+  --board-left-px 20 `
+  --board-top-px 371 `
+  --socket-step-px 105 `
+  --small-width-px 118 `
+  --box-height-px 144 `
+  --pad-x-px 8 `
+  --pad-y-px 4
+```
+
 This path avoids image recognition for card identity. If a live card cannot be
 linked to a known game template, it is skipped instead of being guessed.
 
 ## Current Scope
 
-This is the first working bridge from the game screen to Twitch hover tooltips.
-It does not yet identify items automatically from pixels. The broadcaster still
-selects the BazaarDB item and places the box manually.
+This is the first working bridge from the game state to Twitch hover tooltips.
+The browser Companion is still available for manual layout testing, but the log
+Companion identifies live items automatically from local game data. It does not
+guess item names from pixels.
 
-The next automation layer should replace manual selection with screen
-recognition while keeping the same EBS payload:
+The next automation layer can add OBS/WebSocket source transform detection while
+keeping the same EBS payload:
 
 ```json
 {
   "board": [
     {
       "slot": 0,
-      "id": "dishwasher",
-      "source": "manual",
+      "id": "Dishwasher",
+      "source": "game",
       "confidence": 1,
       "tier": "gold",
-      "bbox": { "x": 0.315, "y": 0.52, "w": 0.112, "h": 0.2 }
+      "bbox": { "x": 0.0094, "y": 0.5097, "w": 0.1047, "h": 0.2111 }
     }
   ]
 }

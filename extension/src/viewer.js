@@ -193,19 +193,28 @@ function renderTooltip(itemState, anchor) {
 function positionTooltip(anchor) {
   const tooltip = refs.tooltip;
   const rect = anchor.getBoundingClientRect();
-  const width = Math.min(300, window.innerWidth - 16);
-  const height = Math.min(430, window.innerHeight - 16);
+  const width = Math.round(
+    Math.min(320, Math.max(240, window.innerWidth * 0.28), window.innerWidth - 16),
+  );
+  const height = Math.round(
+    Math.min(430, Math.max(260, window.innerHeight * 0.78), window.innerHeight - 16),
+  );
   tooltip.style.width = `${width}px`;
   tooltip.style.maxHeight = `${height}px`;
 
-  const preferRight = rect.left + rect.width / 2 < window.innerWidth / 2;
-  const x = preferRight ? rect.right + 14 : rect.left - width - 14;
+  const gap = 12;
+  const roomRight = window.innerWidth - rect.right;
+  const roomLeft = rect.left;
+  const preferRight = roomRight >= width + gap || roomRight >= roomLeft;
+  const sideX = preferRight ? rect.right + gap : rect.left - width - gap;
+  const centerY = rect.top + rect.height / 2 - height / 2;
   const y = Math.min(
-    Math.max(8, rect.top - 24),
+    Math.max(8, centerY),
     Math.max(8, window.innerHeight - height - 8),
   );
 
-  tooltip.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, x))}px`;
+  tooltip.style.left =
+    `${Math.max(8, Math.min(window.innerWidth - width - 8, sideX))}px`;
   tooltip.style.top = `${y}px`;
 }
 

@@ -29,6 +29,21 @@ DISPOSED_RE = re.compile(r"Cards Disposed: (.*)")
 STATE_RE = re.compile(r"State changed from \[[^\]]+\] to \[([^\]]+)\]")
 
 SIZE_SPANS = {"Small": 1, "Medium": 2, "Large": 3}
+DEFAULT_FRAME_WIDTH = 1280
+DEFAULT_FRAME_HEIGHT = 720
+PIXEL_BOX_PROFILES: dict[str, dict[str, float]] = {
+    "720p": {
+        "frame_width": 1280,
+        "frame_height": 720,
+        "board_left": 20,
+        "board_top": 371,
+        "socket_step": 105,
+        "small_width": 118,
+        "box_height": 144,
+        "pad_x": 8,
+        "pad_y": 4,
+    }
+}
 TIER_MAP = {
     "Bronze": "bronze",
     "Silver": "silver",
@@ -355,6 +370,202 @@ def env_float(name: str, default: float) -> float:
     return float(value)
 
 
+def optional_env_int(name: str) -> int | None:
+    value = os.environ.get(name)
+    if value is None or value == "":
+        return None
+    return int(value)
+
+
+def optional_env_float(name: str) -> float | None:
+    value = os.environ.get(name)
+    if value is None or value == "":
+        return None
+    return float(value)
+
+
+def first_float(*values: float | None) -> float | None:
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
+def parse_resolution(value: str | None) -> tuple[int, int] | None:
+    if value is None or value.strip().lower() in {"", "auto", "detect"}:
+        return None
+
+    match = re.fullmatch(r"\s*(\d{3,5})\s*[xX]\s*(\d{3,5})\s*", value)
+    if not match:
+        raise ValueError(f"Invalid resolution: {value!r}. Use 1280x720 or auto.")
+
+    width, height = (int(match.group(1)), int(match.group(2)))
+    if width <= 0 or height <= 0:
+        raise ValueError("Resolution values must be positive")
+    return width, height
+
+
+def detect_game_window_size() -> tuple[int, int] | None:
+    if os.name != "nt":
+        return None
+
+    try:
+        import ctypes
+        from ctypes import wintypes
+    except ImportError:
+        return None
+
+    user32 = ctypes.windll.user32
+    candidates: list[tuple[int, int]] = []
+
+    def enum_window(hwnd: int, _lparam: int) -> bool:
+        if not user32.IsWindowVisible(hwnd):
+            return True
+
+        title_length = user32.GetWindowTextLengthW(hwnd)
+        if title_length <= 0:
+            return True
+
+        title_buffer = ctypes.create_unicode_buffer(title_length + 1)
+        user32.GetWindowTextW(hwnd, title_buffer, title_length + 1)
+        if "the bazaar" not in title_buffer.value.lower():
+            return True
+
+        rect = wintypes.RECT()
+        if not user32.GetClientRect(hwnd, ctypes.byref(rect)):
+            return True
+
+        width = int(rect.right - rect.left)
+        height = int(rect.bottom - rect.top)
+        if width >= 640 and height >= 360:
+            candidates.append((width, height))
+        return True
+
+    callback = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+    user32.EnumWindows(callback(enum_window), 0)
+    if not candidates:
+        return None
+
+    return max(candidates, key=lambda size: size[0] * size[1])
+
+
+def resolve_frame_size(args: argparse.Namespace) -> tuple[int, int]:
+    if (args.stream_width is None) != (args.stream_height is None):
+        raise ValueError("--stream-width and --stream-height must be provided together")
+    if args.stream_width is not None and args.stream_height is not None:
+        if args.stream_width <= 0 or args.stream_height <= 0:
+            raise ValueError("--stream-width and --stream-height must be positive")
+        return args.stream_width, args.stream_height
+
+    parsed = parse_resolution(args.stream_resolution)
+    if parsed is not None:
+        return parsed
+
+    if not args.disable_window_detect:
+        detected = detect_game_window_size()
+        if detected is not None:
+            return detected
+
+    return DEFAULT_FRAME_WIDTH, DEFAULT_FRAME_HEIGHT
+
+
+def build_calibration(args: argparse.Namespace) -> BoxCalibration:
+    profile_name = str(args.box_profile or "").strip().lower()
+    if profile_name in {"", "none", "normalized"}:
+        profile = None
+    else:
+        profile = PIXEL_BOX_PROFILES.get(profile_name)
+        if profile is None:
+            names = ", ".join(sorted(PIXEL_BOX_PROFILES))
+            raise ValueError(f"Unknown box profile: {profile_name}. Use normalized or {names}.")
+
+    has_pixel_args = any(
+        value is not None
+        for value in [
+            args.board_left_px,
+            args.board_top_px,
+            args.socket_step_px,
+            args.socket_9_left_px,
+            args.small_width_px,
+            args.box_height_px,
+            args.pad_x_px,
+            args.pad_y_px,
+        ]
+    ) or profile is not None
+    frame_width, frame_height = resolve_frame_size(args)
+
+    if not has_pixel_args:
+        return BoxCalibration(
+            board_x=args.board_x,
+            board_y=args.board_y,
+            socket_step=args.socket_step,
+            small_width=args.small_width,
+            box_height=args.box_height,
+            pad_x=args.pad_x,
+            pad_y=args.pad_y,
+        )
+
+    def profile_px(name: str, axis: str) -> float | None:
+        if profile is None:
+            return None
+        if axis == "x":
+            return profile[name] * frame_width / profile["frame_width"]
+        return profile[name] * frame_height / profile["frame_height"]
+
+    board_left_px = first_float(
+        args.board_left_px,
+        profile_px("board_left", "x"),
+        args.board_x * frame_width,
+    )
+    board_top_px = first_float(
+        args.board_top_px,
+        profile_px("board_top", "y"),
+        args.board_y * frame_height,
+    )
+    if args.socket_9_left_px is not None:
+        socket_step_px = (args.socket_9_left_px - board_left_px) / 9
+    else:
+        socket_step_px = (
+            args.socket_step_px
+            if args.socket_step_px is not None
+            else first_float(
+                profile_px("socket_step", "x"),
+                args.socket_step * frame_width,
+            )
+        )
+
+    small_width_px = first_float(
+        args.small_width_px,
+        profile_px("small_width", "x"),
+        args.small_width * frame_width,
+    )
+    box_height_px = first_float(
+        args.box_height_px,
+        profile_px("box_height", "y"),
+        args.box_height * frame_height,
+    )
+    pad_x_px = first_float(
+        args.pad_x_px,
+        profile_px("pad_x", "x"),
+        args.pad_x * frame_width,
+    )
+    pad_y_px = first_float(
+        args.pad_y_px,
+        profile_px("pad_y", "y"),
+        args.pad_y * frame_height,
+    )
+
+    return BoxCalibration(
+        board_x=board_left_px / frame_width,
+        board_y=board_top_px / frame_height,
+        socket_step=socket_step_px / frame_width,
+        small_width=small_width_px / frame_width,
+        box_height=box_height_px / frame_height,
+        pad_x=pad_x_px / frame_width,
+        pad_y=pad_y_px / frame_height,
+    )
+
+
 def post_snapshot(base_url: str, channel_id: str, token: str, snapshot: dict[str, Any]) -> str:
     url = f"{base_url.rstrip('/')}/v1/companion/{channel_id}/snapshot"
     request = urllib.request.Request(
@@ -392,6 +603,27 @@ def main() -> None:
     parser.add_argument("--interval", type=float, default=1.1)
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--stream-resolution",
+        default=os.environ.get("BAZAAR_STREAM_RESOLUTION", "auto"),
+        help="Frame/profile resolution for pixel calibration, for example 1280x720.",
+    )
+    parser.add_argument(
+        "--box-profile",
+        default=os.environ.get("BAZAAR_BOX_PROFILE", "720p"),
+        help="Box geometry profile: 720p or normalized.",
+    )
+    parser.add_argument(
+        "--stream-width",
+        type=int,
+        default=optional_env_int("BAZAAR_STREAM_WIDTH"),
+    )
+    parser.add_argument(
+        "--stream-height",
+        type=int,
+        default=optional_env_int("BAZAAR_STREAM_HEIGHT"),
+    )
+    parser.add_argument("--disable-window-detect", action="store_true")
     parser.add_argument("--board-x", type=float, default=env_float("BAZAAR_BOARD_X", 0.09))
     parser.add_argument("--board-y", type=float, default=env_float("BAZAAR_BOARD_Y", 0.52))
     parser.add_argument(
@@ -411,19 +643,66 @@ def main() -> None:
     )
     parser.add_argument("--pad-x", type=float, default=env_float("BAZAAR_BOX_PAD_X", 0.018))
     parser.add_argument("--pad-y", type=float, default=env_float("BAZAAR_BOX_PAD_Y", 0.005))
+    parser.add_argument(
+        "--board-left-px",
+        "--board-x-px",
+        dest="board_left_px",
+        type=float,
+        default=first_float(
+            optional_env_float("BAZAAR_BOARD_LEFT_PX"),
+            optional_env_float("BAZAAR_BOARD_X_PX"),
+        ),
+    )
+    parser.add_argument(
+        "--board-top-px",
+        "--board-y-px",
+        dest="board_top_px",
+        type=float,
+        default=first_float(
+            optional_env_float("BAZAAR_BOARD_TOP_PX"),
+            optional_env_float("BAZAAR_BOARD_Y_PX"),
+        ),
+    )
+    parser.add_argument(
+        "--socket-step-px",
+        type=float,
+        default=optional_env_float("BAZAAR_SOCKET_STEP_PX"),
+    )
+    parser.add_argument(
+        "--socket-9-left-px",
+        "--socket-9-x-px",
+        dest="socket_9_left_px",
+        type=float,
+        default=first_float(
+            optional_env_float("BAZAAR_SOCKET_9_LEFT_PX"),
+            optional_env_float("BAZAAR_SOCKET_9_X_PX"),
+        ),
+    )
+    parser.add_argument(
+        "--small-width-px",
+        type=float,
+        default=optional_env_float("BAZAAR_SMALL_WIDTH_PX"),
+    )
+    parser.add_argument(
+        "--box-height-px",
+        type=float,
+        default=optional_env_float("BAZAAR_BOX_HEIGHT_PX"),
+    )
+    parser.add_argument(
+        "--pad-x-px",
+        type=float,
+        default=optional_env_float("BAZAAR_BOX_PAD_X_PX"),
+    )
+    parser.add_argument(
+        "--pad-y-px",
+        type=float,
+        default=optional_env_float("BAZAAR_BOX_PAD_Y_PX"),
+    )
     args = parser.parse_args()
 
     cards_cache = args.cards_cache or default_cards_cache(args.game_dir)
     patch, templates = load_templates(cards_cache)
-    calibration = BoxCalibration(
-        board_x=args.board_x,
-        board_y=args.board_y,
-        socket_step=args.socket_step,
-        small_width=args.small_width,
-        box_height=args.box_height,
-        pad_x=args.pad_x,
-        pad_y=args.pad_y,
-    )
+    calibration = build_calibration(args)
     log_paths = [args.game_dir / "Player-prev.log", args.game_dir / "Player.log"]
 
     seq = 1
