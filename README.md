@@ -17,7 +17,7 @@ copy HearthSim code.
 ```text
 extension/   Twitch Extension frontend files
 ebs/         FastAPI EBS that validates Companion snapshots and sends PubSub
-companion/   Fake Companion sender for local testing
+companion/   Fake/file Companion senders for local testing
 docs/        Architecture and setup notes
 ```
 
@@ -46,10 +46,17 @@ Local viewer with EBS polling:
 http://127.0.0.1:5173/viewer.html?ebs=http://127.0.0.1:8000&channel=dev-channel
 ```
 
+Local browser Companion:
+
+```text
+http://127.0.0.1:5173/companion.html
+```
+
 Docs:
 
 - [Architecture](docs/architecture.md)
 - [Local Development](docs/local-dev.md)
+- [Companion](docs/companion.md)
 - [Twitch Console Setup](docs/twitch-console-setup.md)
 - [Twitch EBS Notes](docs/twitch-ebs-notes.md)
 - [Finland Deployment](docs/deploy-finland.md)

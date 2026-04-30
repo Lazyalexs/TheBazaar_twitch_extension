@@ -46,6 +46,8 @@ The current prototype includes:
 - `companion/fake_companion.py` for smoke tests.
 - `companion/file_companion.py` for publishing a JSON board file containing real
   `id` and normalized `bbox` values.
+- `extension/companion.html` for a browser-based broadcaster tool that captures
+  the game window and publishes manually placed hover boxes.
 
 ### EBS
 

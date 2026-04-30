@@ -115,6 +115,12 @@ The config page is available at:
 http://127.0.0.1:5173/config.html
 ```
 
+The broadcaster Companion is available at:
+
+```text
+http://127.0.0.1:5173/companion.html
+```
+
 Inside Twitch, `live.html` and `config.html` will also receive Twitch Helper
 authorization and can use the real channel ID automatically.
 

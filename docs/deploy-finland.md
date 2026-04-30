@@ -12,6 +12,7 @@ This file deploys both pieces on one HTTPS origin:
 https://api.thebazaar-twitch.online/viewer.html
 https://api.thebazaar-twitch.online/config.html
 https://api.thebazaar-twitch.online/live.html
+https://api.thebazaar-twitch.online/companion.html
 https://api.thebazaar-twitch.online/health
 https://api.thebazaar-twitch.online/v1/...
 ```
@@ -79,6 +80,7 @@ Check:
 ```bash
 curl https://api.thebazaar-twitch.online/health
 curl https://api.thebazaar-twitch.online/viewer.html
+curl https://api.thebazaar-twitch.online/companion.html
 curl https://api.thebazaar-twitch.online/bazaar-art/s.bazaardb.gg/v1/z13.0/88771f1a4ca12107ef301b0544325e893372db75@256.webp?v=6 -I
 ```
 
