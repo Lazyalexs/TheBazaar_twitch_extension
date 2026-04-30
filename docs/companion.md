@@ -118,6 +118,8 @@ Use `--stream-resolution auto` to let the Companion try the local The Bazaar
 window size first and then fall back to `1280x720`. The exact card identity still
 comes from the game log (`InstanceId` -> `TemplateId` -> BazaarDB item), while
 the resolution only affects the normalized hover box geometry.
+Unchanged state is republished every 15 seconds by default, so EBS recovers
+automatically after a server restart.
 
 If the OBS/game capture layout needs manual tuning, override the profile values:
 

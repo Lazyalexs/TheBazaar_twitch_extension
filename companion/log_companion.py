@@ -601,6 +601,12 @@ def main() -> None:
         default=os.environ.get("COMPANION_SHARED_TOKEN", "dev-companion-token"),
     )
     parser.add_argument("--interval", type=float, default=1.1)
+    parser.add_argument(
+        "--max-send-interval",
+        type=float,
+        default=env_float("BAZAAR_MAX_SEND_INTERVAL", 15.0),
+        help="Republish unchanged state after this many seconds.",
+    )
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
@@ -708,13 +714,19 @@ def main() -> None:
     seq = 1
     run_id = f"log-companion-{int(time.time())}"
     last_payload: bytes | None = None
+    last_sent_at = 0.0
 
     while True:
         state = build_state(read_log_text(log_paths), templates, calibration)
         payload = state.payload(patch)
         payload_key = compact_json(payload)
+        now = time.monotonic()
 
-        if args.once or payload_key != last_payload:
+        if (
+            args.once
+            or payload_key != last_payload
+            or now - last_sent_at >= args.max_send_interval
+        ):
             snapshot = build_snapshot(seq, run_id, payload)
             if args.dry_run:
                 print(json.dumps(snapshot, ensure_ascii=False, indent=2))
@@ -722,6 +734,7 @@ def main() -> None:
                 print(post_snapshot(args.url, args.channel, args.token, snapshot))
             seq += 1
             last_payload = payload_key
+            last_sent_at = now
 
         if args.once:
             return
