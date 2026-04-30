@@ -21,6 +21,8 @@ def test_snapshot_payload_is_normalized_and_small():
                     {
                         "slot": 0,
                         "id": "dishwasher",
+                        "source": "game",
+                        "confidence": 1,
                         "tier": "gold",
                         "enchants": [],
                         "cd": 3.2,
@@ -32,5 +34,7 @@ def test_snapshot_payload_is_normalized_and_small():
     )
 
     assert envelope.payload["board"][0]["id"] == "dishwasher"
+    assert envelope.payload["board"][0]["source"] == "game"
+    assert envelope.payload["board"][0]["confidence"] == 1
     assert envelope.payload["board"][0]["bbox"]["x"] == 0.1
     assert compact_size_bytes(envelope.model_dump(exclude_none=True)) < 5000

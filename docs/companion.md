@@ -53,6 +53,40 @@ instead of showing a placeholder or a random card.
 The same rule applies to future vision recognition: low-confidence matches are
 not shown to viewers.
 
+## Automatic Log Companion
+
+For a no-click streamer workflow, use the log Companion instead of the browser
+layout editor. It reads the local Unity log and cache files written by The
+Bazaar, links live `InstanceId` values to exact `TemplateId` values, maps those
+templates to item names, and publishes them as `source: "game"` with
+`confidence: 1`.
+
+Default paths on Windows:
+
+```text
+%USERPROFILE%\AppData\LocalLow\Tempo Storm\The Bazaar\Player.log
+%USERPROFILE%\AppData\LocalLow\Tempo Storm\The Bazaar\Player-prev.log
+%USERPROFILE%\AppData\LocalLow\Tempo Storm\The Bazaar\prod\cache\cards.json
+```
+
+Dry-run inspection:
+
+```powershell
+.\.venv\Scripts\python companion\log_companion.py --once --dry-run
+```
+
+Live publishing:
+
+```powershell
+.\.venv\Scripts\python companion\log_companion.py `
+  --url https://api.thebazaar-twitch.online `
+  --channel 274185831 `
+  --token <companion-token>
+```
+
+This path avoids image recognition for card identity. If a live card cannot be
+linked to a known game template, it is skipped instead of being guessed.
+
 ## Current Scope
 
 This is the first working bridge from the game screen to Twitch hover tooltips.

@@ -24,7 +24,7 @@ class BoardItem(BaseModel):
 
     slot: int = Field(ge=0, le=15)
     id: str = Field(min_length=1, max_length=80)
-    source: Literal["manual", "confirmed", "vision"] = "manual"
+    source: Literal["manual", "confirmed", "vision", "game"] = "manual"
     confidence: float | None = Field(default=None, ge=0, le=1)
     tier: str | None = Field(default=None, max_length=32)
     enchants: list[str] = Field(default_factory=list, max_length=8)
