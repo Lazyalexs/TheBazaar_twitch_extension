@@ -29,9 +29,20 @@ DISPOSED_RE = re.compile(r"Cards Disposed: (.*)")
 STATE_RE = re.compile(r"State changed from \[[^\]]+\] to \[([^\]]+)\]")
 
 SIZE_SPANS = {"Small": 1, "Medium": 2, "Large": 3}
-DEFAULT_FRAME_WIDTH = 1280
-DEFAULT_FRAME_HEIGHT = 720
+DEFAULT_FRAME_WIDTH = 1920
+DEFAULT_FRAME_HEIGHT = 1080
 PIXEL_BOX_PROFILES: dict[str, dict[str, float]] = {
+    "1080p": {
+        "frame_width": 1920,
+        "frame_height": 1080,
+        "board_left": 30,
+        "board_top": 556.5,
+        "socket_step": 157.5,
+        "small_width": 177,
+        "box_height": 216,
+        "pad_x": 12,
+        "pad_y": 6,
+    },
     "720p": {
         "frame_width": 1280,
         "frame_height": 720,
@@ -397,7 +408,7 @@ def parse_resolution(value: str | None) -> tuple[int, int] | None:
 
     match = re.fullmatch(r"\s*(\d{3,5})\s*[xX]\s*(\d{3,5})\s*", value)
     if not match:
-        raise ValueError(f"Invalid resolution: {value!r}. Use 1280x720 or auto.")
+        raise ValueError(f"Invalid resolution: {value!r}. Use 1920x1080 or auto.")
 
     width, height = (int(match.group(1)), int(match.group(2)))
     if width <= 0 or height <= 0:
@@ -612,12 +623,12 @@ def main() -> None:
     parser.add_argument(
         "--stream-resolution",
         default=os.environ.get("BAZAAR_STREAM_RESOLUTION", "auto"),
-        help="Frame/profile resolution for pixel calibration, for example 1280x720.",
+        help="Frame/profile resolution for pixel calibration, for example 1920x1080.",
     )
     parser.add_argument(
         "--box-profile",
-        default=os.environ.get("BAZAAR_BOX_PROFILE", "720p"),
-        help="Box geometry profile: 720p or normalized.",
+        default=os.environ.get("BAZAAR_BOX_PROFILE", "1080p"),
+        help="Box geometry profile: 1080p, 720p, or normalized.",
     )
     parser.add_argument(
         "--stream-width",

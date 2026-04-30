@@ -21,6 +21,18 @@ companion/   Fake/file Companion senders for local testing
 docs/        Architecture and setup notes
 ```
 
+Windows streamer app:
+
+```powershell
+.\.venv\Scripts\python -m companion.desktop_app
+```
+
+Build a local `.exe`:
+
+```powershell
+.\companion\build_windows.ps1
+```
+
 Start with dry-run mode before Twitch secrets and HTTPS are configured:
 
 ```powershell

@@ -69,6 +69,36 @@ Default paths on Windows:
 %USERPROFILE%\AppData\LocalLow\Tempo Storm\The Bazaar\prod\cache\cards.json
 ```
 
+## Windows Streamer App
+
+The desktop streamer app wraps the log Companion into a normal Windows UI:
+
+```powershell
+.\.venv\Scripts\python -m companion.desktop_app
+```
+
+It provides:
+
+- EBS URL, Channel ID, and Companion Token setup;
+- secure token storage with Windows DPAPI under the current Windows account;
+- HTTPS enforcement for remote EBS URLs;
+- Start, Stop, and Test Once controls;
+- live status for server publishing, game phase, board cards, and basic run
+  statistics from the local log;
+- 1080p box profile by default for standard Twitch streams.
+
+Build the `.exe`:
+
+```powershell
+.\companion\build_windows.ps1
+```
+
+The executable is written to:
+
+```text
+dist\TheBazaarLiveBoardCompanion\TheBazaarLiveBoardCompanion.exe
+```
+
 Dry-run inspection:
 
 ```powershell
@@ -100,7 +130,7 @@ The generated hover boxes can be calibrated without changing code:
   --pad-y 0.005
 ```
 
-For a 720p Twitch/OBS frame, the log Companion now uses the built-in `720p`
+For a standard 1080p Twitch/OBS frame, the log Companion now uses the built-in `1080p`
 box profile by default. The Companion converts these pixel values to normalized
 Twitch coordinates before publishing, so the viewer overlay still scales
 correctly when the player is resized:
@@ -111,11 +141,11 @@ correctly when the player is resized:
   --channel 274185831 `
   --token <companion-token> `
   --stream-resolution auto `
-  --box-profile 720p
+  --box-profile 1080p
 ```
 
 Use `--stream-resolution auto` to let the Companion try the local The Bazaar
-window size first and then fall back to `1280x720`. The exact card identity still
+window size first and then fall back to `1920x1080`. The exact card identity still
 comes from the game log (`InstanceId` -> `TemplateId` -> BazaarDB item), while
 the resolution only affects the normalized hover box geometry.
 Unchanged state is republished every 15 seconds by default, so EBS recovers
@@ -128,15 +158,15 @@ If the OBS/game capture layout needs manual tuning, override the profile values:
   --url https://api.thebazaar-twitch.online `
   --channel 274185831 `
   --token <companion-token> `
-  --stream-resolution 1280x720 `
-  --box-profile 720p `
-  --board-left-px 20 `
-  --board-top-px 371 `
-  --socket-step-px 105 `
-  --small-width-px 118 `
-  --box-height-px 144 `
-  --pad-x-px 8 `
-  --pad-y-px 4
+  --stream-resolution 1920x1080 `
+  --box-profile 1080p `
+  --board-left-px 30 `
+  --board-top-px 556.5 `
+  --socket-step-px 157.5 `
+  --small-width-px 177 `
+  --box-height-px 216 `
+  --pad-x-px 12 `
+  --pad-y-px 6
 ```
 
 This path avoids image recognition for card identity. If a live card cannot be

@@ -145,3 +145,16 @@ def test_720p_profile_scales_with_detected_frame_size():
     box = socket_box(0, "Small", calibration)
 
     assert box == {"x": 0.0094, "y": 0.5097, "w": 0.1047, "h": 0.2111}
+
+
+def test_1080p_profile_matches_standard_stream_layout():
+    calibration = build_calibration(
+        calibration_args(
+            box_profile="1080p",
+            stream_resolution="1920x1080",
+        )
+    )
+
+    box = socket_box(0, "Small", calibration)
+
+    assert box == {"x": 0.0094, "y": 0.5097, "w": 0.1047, "h": 0.2111}
