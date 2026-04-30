@@ -1,4 +1,4 @@
-from companion.log_companion import BazaarLogState, TemplateInfo
+from companion.log_companion import BazaarLogState, BoxCalibration, TemplateInfo, socket_box
 
 
 def test_log_state_links_instances_to_exact_templates():
@@ -36,3 +36,21 @@ def test_log_state_links_instances_to_exact_templates():
     assert payload["board"][0]["confidence"] == 1
     assert payload["board"][1]["id"] == "Cruise Ship"
     assert payload["board"][1]["slot"] == 6
+
+
+def test_socket_box_uses_calibration_padding():
+    box = socket_box(
+        2,
+        "Small",
+        BoxCalibration(
+            board_x=0.09,
+            board_y=0.52,
+            socket_step=0.075,
+            small_width=0.105,
+            box_height=0.2,
+            pad_x=0.018,
+            pad_y=0.005,
+        ),
+    )
+
+    assert box == {"x": 0.222, "y": 0.515, "w": 0.141, "h": 0.21}

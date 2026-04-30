@@ -84,6 +84,22 @@ Live publishing:
   --token <companion-token>
 ```
 
+The generated hover boxes can be calibrated without changing code:
+
+```powershell
+.\.venv\Scripts\python companion\log_companion.py `
+  --url https://api.thebazaar-twitch.online `
+  --channel 274185831 `
+  --token <companion-token> `
+  --board-x 0.09 `
+  --board-y 0.52 `
+  --socket-step 0.075 `
+  --small-width 0.105 `
+  --box-height 0.2 `
+  --pad-x 0.018 `
+  --pad-y 0.005
+```
+
 This path avoids image recognition for card identity. If a live card cannot be
 linked to a known game template, it is skipped instead of being guessed.
 

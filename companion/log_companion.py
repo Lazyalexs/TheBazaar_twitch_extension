@@ -46,9 +46,25 @@ class TemplateInfo:
     cooldown: float | None
 
 
+@dataclass(frozen=True)
+class BoxCalibration:
+    board_x: float = 0.09
+    board_y: float = 0.52
+    socket_step: float = 0.075
+    small_width: float = 0.105
+    box_height: float = 0.2
+    pad_x: float = 0.018
+    pad_y: float = 0.005
+
+
 class BazaarLogState:
-    def __init__(self, templates: dict[str, TemplateInfo]) -> None:
+    def __init__(
+        self,
+        templates: dict[str, TemplateInfo],
+        calibration: BoxCalibration | None = None,
+    ) -> None:
         self.templates = templates
+        self.calibration = calibration or BoxCalibration()
         self.instance_to_template: dict[str, str] = {}
         self.instance_to_size: dict[str, str] = {}
         self.board: dict[int, str] = {}
@@ -215,7 +231,7 @@ class BazaarLogState:
                     "enchants": [],
                     "cd": info.cooldown,
                     "ammo": None,
-                    "bbox": socket_box(slot, size),
+                    "bbox": socket_box(slot, size, self.calibration),
                 }
             )
         return items
@@ -289,27 +305,34 @@ def read_log_text(paths: list[Path]) -> str:
     return "\n".join(parts)
 
 
-def build_state(log_text: str, templates: dict[str, TemplateInfo]) -> BazaarLogState:
-    state = BazaarLogState(templates)
+def build_state(
+    log_text: str,
+    templates: dict[str, TemplateInfo],
+    calibration: BoxCalibration | None = None,
+) -> BazaarLogState:
+    state = BazaarLogState(templates, calibration)
     for line in log_text.splitlines():
         state.apply_line(line)
     return state
 
 
-def socket_box(socket: int, size: str) -> dict[str, float]:
+def socket_box(socket: int, size: str, calibration: BoxCalibration) -> dict[str, float]:
     span = SIZE_SPANS.get(size, 1)
-    x0 = 0.09
-    y = 0.52
-    step = 0.075
-    small_width = 0.105
-    height = 0.2
-    x = x0 + socket * step
-    width = small_width + (span - 1) * step
+    x = calibration.board_x + socket * calibration.socket_step - calibration.pad_x
+    y = calibration.board_y - calibration.pad_y
+    width = (
+        calibration.small_width
+        + (span - 1) * calibration.socket_step
+        + calibration.pad_x * 2
+    )
+    height = calibration.box_height + calibration.pad_y * 2
+    x = max(0, min(0.98, x))
+    y = max(0, min(0.98, y))
     return {
-        "x": round(max(0, min(0.98, x)), 4),
+        "x": round(x, 4),
         "y": round(y, 4),
         "w": round(max(0.025, min(1 - x, width)), 4),
-        "h": round(height, 4),
+        "h": round(max(0.025, min(1 - y, height)), 4),
     }
 
 
@@ -323,6 +346,13 @@ def build_snapshot(seq: int, run_id: str, payload: dict[str, Any]) -> dict[str, 
         "runId": run_id,
         "payload": payload,
     }
+
+
+def env_float(name: str, default: float) -> float:
+    value = os.environ.get(name)
+    if value is None or value == "":
+        return default
+    return float(value)
 
 
 def post_snapshot(base_url: str, channel_id: str, token: str, snapshot: dict[str, Any]) -> str:
@@ -362,10 +392,38 @@ def main() -> None:
     parser.add_argument("--interval", type=float, default=1.1)
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--board-x", type=float, default=env_float("BAZAAR_BOARD_X", 0.09))
+    parser.add_argument("--board-y", type=float, default=env_float("BAZAAR_BOARD_Y", 0.52))
+    parser.add_argument(
+        "--socket-step",
+        type=float,
+        default=env_float("BAZAAR_SOCKET_STEP", 0.075),
+    )
+    parser.add_argument(
+        "--small-width",
+        type=float,
+        default=env_float("BAZAAR_SMALL_WIDTH", 0.105),
+    )
+    parser.add_argument(
+        "--box-height",
+        type=float,
+        default=env_float("BAZAAR_BOX_HEIGHT", 0.2),
+    )
+    parser.add_argument("--pad-x", type=float, default=env_float("BAZAAR_BOX_PAD_X", 0.018))
+    parser.add_argument("--pad-y", type=float, default=env_float("BAZAAR_BOX_PAD_Y", 0.005))
     args = parser.parse_args()
 
     cards_cache = args.cards_cache or default_cards_cache(args.game_dir)
     patch, templates = load_templates(cards_cache)
+    calibration = BoxCalibration(
+        board_x=args.board_x,
+        board_y=args.board_y,
+        socket_step=args.socket_step,
+        small_width=args.small_width,
+        box_height=args.box_height,
+        pad_x=args.pad_x,
+        pad_y=args.pad_y,
+    )
     log_paths = [args.game_dir / "Player-prev.log", args.game_dir / "Player.log"]
 
     seq = 1
@@ -373,7 +431,7 @@ def main() -> None:
     last_payload: bytes | None = None
 
     while True:
-        state = build_state(read_log_text(log_paths), templates)
+        state = build_state(read_log_text(log_paths), templates, calibration)
         payload = state.payload(patch)
         payload_key = compact_json(payload)
 
