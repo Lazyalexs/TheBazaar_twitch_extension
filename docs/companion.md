@@ -29,6 +29,27 @@ Required fields:
 The page stores these values in the browser's `localStorage`, not in the
 extension code.
 
+The Companion also stores the current card layout in `localStorage`, so the
+broadcaster can reload the page without losing manually placed boxes. The hosted
+page includes a web app manifest and service worker, allowing supported browsers
+to install it as a standalone app.
+
+For live use, the broadcaster can place a box once and then use `Assign
+Selected` to bind a different BazaarDB item to that same screen position without
+redrawing the box.
+
+## Hover Contract
+
+Viewer hover zones are deterministic:
+
+- each published board item must use an item id that exists in the bundled
+  BazaarDB data file;
+- each board item must include a normalized `bbox` inside the video frame;
+- the viewer does not create fallback boxes.
+
+If an item id is unknown or a box is missing/invalid, that item is skipped
+instead of showing a placeholder or a random card.
+
 ## Current Scope
 
 This is the first working bridge from the game screen to Twitch hover tooltips.

@@ -41,6 +41,20 @@ button {
   padding: 10px 14px;
 }
 
+button[hidden] {
+  display: none !important;
+}
+
+button.secondary {
+  background: rgba(246, 241, 232, 0.08);
+  color: #f6f1e8;
+}
+
+button.danger {
+  background: rgba(152, 56, 48, 0.72);
+  color: #fff4ed;
+}
+
 input,
 select {
   width: 100%;

@@ -58,6 +58,22 @@ function itemRef(id) {
   return state.items.get(normalizeItemId(id));
 }
 
+function validBox(box) {
+  return Boolean(
+    box &&
+      Number.isFinite(box.x) &&
+      Number.isFinite(box.y) &&
+      Number.isFinite(box.w) &&
+      Number.isFinite(box.h) &&
+      box.x >= 0 &&
+      box.y >= 0 &&
+      box.w > 0 &&
+      box.h > 0 &&
+      box.x + box.w <= 1 &&
+      box.y + box.h <= 1,
+  );
+}
+
 function uniqueLabels(items) {
   const seen = new Set();
   const labels = [];
@@ -134,12 +150,15 @@ function renderEffects(ref, itemState) {
 
 function renderTooltip(itemState, anchor) {
   const ref = itemRef(itemState.id);
+  if (!ref) {
+    return;
+  }
   window.clearTimeout(state.hideTooltipTimer);
   refs.tooltip.hidden = false;
   refs.tooltip.innerHTML = "";
 
   const title = document.createElement("h2");
-  title.textContent = ref?.name ?? titleCase(itemState.id);
+  title.textContent = ref.name;
 
   const typeRow = document.createElement("section");
   typeRow.className = "tooltip-row";
@@ -202,34 +221,29 @@ function renderSummary(payload) {
   refs.phase.textContent = titleCase(payload.phase);
 }
 
-function fallbackBox(index) {
-  return {
-    x: 0.08 + index * 0.115,
-    y: 0.58,
-    w: 0.095,
-    h: 0.17,
-  };
-}
-
 function renderHotspots(payload) {
   refs.board.innerHTML = "";
   refs.board.classList.toggle(
     "debug-hotspots",
     state.debugUi && payload.debugHotspots === true,
   );
-  for (const [index, itemState] of (payload.board ?? []).entries()) {
-    const box = itemState.bbox ?? fallbackBox(index);
+  for (const itemState of payload.board ?? []) {
     const ref = itemRef(itemState.id);
+    const box = itemState.bbox;
+    if (!ref || !validBox(box)) {
+      continue;
+    }
+
     const button = document.createElement("button");
     button.className = "hotspot";
     button.type = "button";
-    button.setAttribute("aria-label", ref?.name ?? titleCase(itemState.id));
+    button.setAttribute("aria-label", ref.name);
     button.style.left = `${box.x * 100}%`;
     button.style.top = `${box.y * 100}%`;
     button.style.width = `${box.w * 100}%`;
     button.style.height = `${box.h * 100}%`;
     const label = document.createElement("span");
-    label.textContent = ref?.name ?? titleCase(itemState.id);
+    label.textContent = ref.name;
     button.append(label);
     button.addEventListener("mouseenter", () => renderTooltip(itemState, button));
     button.addEventListener("focus", () => renderTooltip(itemState, button));

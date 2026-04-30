@@ -3,7 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#071014" />
     <title>The Bazaar Companion</title>
+    <link rel="manifest" href="./companion.webmanifest" />
     <link rel="stylesheet" href="./assets/app.css" />
   </head>
   <body class="dashboard companion-page">
@@ -14,7 +16,10 @@
           <h1>The Bazaar Live Board</h1>
         </div>
         <div class="companion-actions">
+          <button id="installApp" class="secondary" type="button" hidden>Install App</button>
           <button id="captureScreen" type="button">Capture</button>
+          <button id="saveLayout" class="secondary" type="button">Save Layout</button>
+          <button id="clearLayout" class="danger" type="button">Clear</button>
           <button id="publishNow" type="button">Publish</button>
           <label class="toggle-row">
             <input id="autoPublish" type="checkbox" />
@@ -77,6 +82,7 @@
           </label>
           <section class="search-results" id="searchResults"></section>
           <button id="addSelected" type="button">Add Selected</button>
+          <button id="assignSelected" class="secondary" type="button">Assign Selected</button>
 
           <section class="board-editor" id="boardEditor"></section>
           <section class="diagnostics companion-status" id="status">Ready.</section>

@@ -2,9 +2,13 @@ import { formatValue, titleCase } from "./protocol.js";
 
 const TIER_OPTIONS = ["bronze", "silver", "gold", "diamond"];
 const SETTINGS_KEY = "bazaar-companion-settings-v1";
+const BOARD_KEY = "bazaar-companion-board-v1";
 
 const refs = {
   captureScreen: document.querySelector("#captureScreen"),
+  installApp: document.querySelector("#installApp"),
+  saveLayout: document.querySelector("#saveLayout"),
+  clearLayout: document.querySelector("#clearLayout"),
   publishNow: document.querySelector("#publishNow"),
   autoPublish: document.querySelector("#autoPublish"),
   ebsUrl: document.querySelector("#ebsUrl"),
@@ -19,6 +23,7 @@ const refs = {
   itemSearch: document.querySelector("#itemSearch"),
   searchResults: document.querySelector("#searchResults"),
   addSelected: document.querySelector("#addSelected"),
+  assignSelected: document.querySelector("#assignSelected"),
   boardEditor: document.querySelector("#boardEditor"),
   status: document.querySelector("#status"),
   stage: document.querySelector("#stage"),
@@ -29,12 +34,14 @@ const refs = {
 
 const state = {
   items: [],
+  itemById: new Map(),
   selectedItem: null,
   cards: [],
   selectedCardId: null,
   seq: 1,
   runId: `manual-${Date.now()}`,
   autoTimer: null,
+  installPrompt: null,
 };
 
 function defaultEbsUrl() {
@@ -74,7 +81,11 @@ function saveSettings() {
     health: refs.health.value,
     maxHealth: refs.maxHealth.value,
   };
-  window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  try {
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  } catch {
+    setStatus("Browser storage is unavailable.");
+  }
 }
 
 function setStatus(message, data = null) {
@@ -91,6 +102,35 @@ function normalizeItemId(value) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
+}
+
+function indexItem(item) {
+  for (const key of [item.id, item.cardId, item.bazaarDbId, item.name, ...(item.aliases ?? [])]) {
+    const normalized = normalizeItemId(key);
+    if (normalized) {
+      state.itemById.set(normalized, item);
+    }
+  }
+}
+
+function itemRef(id) {
+  return state.itemById.get(normalizeItemId(id)) ?? null;
+}
+
+function validBox(box) {
+  return Boolean(
+    box &&
+      Number.isFinite(box.x) &&
+      Number.isFinite(box.y) &&
+      Number.isFinite(box.w) &&
+      Number.isFinite(box.h) &&
+      box.x >= 0 &&
+      box.y >= 0 &&
+      box.w > 0 &&
+      box.h > 0 &&
+      box.x + box.w <= 1 &&
+      box.y + box.h <= 1,
+  );
 }
 
 function itemSearchText(item) {
@@ -119,6 +159,10 @@ function itemImage(item) {
 async function loadItems() {
   const response = await fetch("./data/items.min.json");
   state.items = await response.json();
+  state.itemById = new Map();
+  for (const item of state.items) {
+    indexItem(item);
+  }
   state.selectedItem = state.items.find((item) => item.id === "dishwasher") ?? null;
   if (!refs.itemSearch.value && state.selectedItem) {
     refs.itemSearch.value = state.selectedItem.name;
@@ -153,7 +197,7 @@ function renderSearchResults() {
 
     const text = document.createElement("span");
     text.className = "search-result-text";
-    text.textContent = `${item.name} · ${titleCase(item.baseTier)} · ${(item.types ?? []).join(", ")}`;
+    text.textContent = `${item.name} - ${titleCase(item.baseTier)} - ${(item.types ?? []).join(", ")}`;
 
     button.append(image, text);
     button.addEventListener("click", () => {
@@ -171,6 +215,89 @@ function defaultBox(index) {
     w: 0.085,
     h: 0.17,
   };
+}
+
+function sanitizeBox(box, index) {
+  const source = validBox(box) ? box : defaultBox(index);
+  const width = clamp(Number(source.w), 0.025, 1);
+  const height = clamp(Number(source.h), 0.045, 1);
+  return {
+    x: clamp(Number(source.x), 0, 1 - width),
+    y: clamp(Number(source.y), 0, 1 - height),
+    w: width,
+    h: height,
+  };
+}
+
+function validTier(value, fallback = "bronze") {
+  if (TIER_OPTIONS.includes(value)) {
+    return value;
+  }
+  return TIER_OPTIONS.includes(fallback) ? fallback : "bronze";
+}
+
+function loadBoard() {
+  let stored = {};
+  try {
+    stored = JSON.parse(window.localStorage.getItem(BOARD_KEY) ?? "{}");
+  } catch {
+    stored = {};
+  }
+
+  const cards = Array.isArray(stored.cards) ? stored.cards : [];
+  state.cards = [];
+  for (const [index, card] of cards.entries()) {
+    const ref = itemRef(card.id);
+    if (!ref) {
+      continue;
+    }
+
+    state.cards.push({
+      localId:
+        typeof card.localId === "string" && card.localId
+          ? card.localId
+          : `card-${Date.now()}-${index}`,
+      id: ref.id,
+      name: ref.name,
+      tier: validTier(card.tier, ref.baseTier),
+      cd: numberOrNull(card.cd ?? ref.cooldown),
+      ammo: numberOrNull(card.ammo ?? ref.ammo),
+      bbox: sanitizeBox(card.bbox, index),
+    });
+  }
+  state.selectedCardId = state.cards.at(-1)?.localId ?? null;
+}
+
+function saveBoard() {
+  const stored = {
+    savedAt: Date.now(),
+    cards: state.cards.map((card) => ({
+      localId: card.localId,
+      id: card.id,
+      tier: card.tier,
+      cd: card.cd,
+      ammo: card.ammo,
+      bbox: {
+        x: Number(card.bbox.x.toFixed(4)),
+        y: Number(card.bbox.y.toFixed(4)),
+        w: Number(card.bbox.w.toFixed(4)),
+        h: Number(card.bbox.h.toFixed(4)),
+      },
+    })),
+  };
+  try {
+    window.localStorage.setItem(BOARD_KEY, JSON.stringify(stored));
+  } catch {
+    setStatus("Layout could not be saved in this browser.");
+  }
+}
+
+function clearBoard() {
+  state.cards = [];
+  state.selectedCardId = null;
+  saveBoard();
+  renderCards();
+  setStatus("Layout cleared.");
 }
 
 function addSelectedItem() {
@@ -191,12 +318,48 @@ function addSelectedItem() {
   };
   state.cards.push(card);
   state.selectedCardId = card.localId;
+  saveBoard();
   renderCards();
   setStatus(`Added ${card.name}.`);
 }
 
+function assignSelectedItem() {
+  const card = selectedCard();
+  if (!card) {
+    setStatus("Select a box first.");
+    return;
+  }
+  if (!state.selectedItem) {
+    setStatus("Select an item first.");
+    return;
+  }
+
+  card.id = state.selectedItem.id;
+  card.name = state.selectedItem.name;
+  card.tier = state.selectedItem.baseTier || card.tier || "bronze";
+  card.cd = state.selectedItem.cooldown;
+  card.ammo = state.selectedItem.ammo;
+  saveBoard();
+  renderCards();
+  setStatus(`Assigned ${card.name} to the selected box.`);
+}
+
 function selectedCard() {
   return state.cards.find((card) => card.localId === state.selectedCardId) ?? null;
+}
+
+function selectCard(card, syncSearch = false) {
+  state.selectedCardId = card.localId;
+  if (!syncSearch) {
+    return;
+  }
+
+  const ref = itemRef(card.id);
+  if (ref) {
+    state.selectedItem = ref;
+    refs.itemSearch.value = ref.name;
+    renderSearchResults();
+  }
 }
 
 function numberOrNull(value) {
@@ -221,7 +384,7 @@ function updateHotspotElement(card) {
 function startBoxDrag(event, card, mode) {
   event.preventDefault();
   event.stopPropagation();
-  state.selectedCardId = card.localId;
+  selectCard(card);
   renderCards();
 
   const rect = refs.stage.getBoundingClientRect();
@@ -246,6 +409,7 @@ function startBoxDrag(event, card, mode) {
   const stop = () => {
     document.removeEventListener("pointermove", move);
     document.removeEventListener("pointerup", stop);
+    saveBoard();
     renderCards();
   };
 
@@ -299,7 +463,7 @@ function renderBoardEditor() {
     name.className = "board-row-name";
     name.textContent = card.name;
     name.addEventListener("click", () => {
-      state.selectedCardId = card.localId;
+      selectCard(card, true);
       renderCards();
     });
 
@@ -313,6 +477,7 @@ function renderBoardEditor() {
     tier.value = card.tier;
     tier.addEventListener("change", () => {
       card.tier = tier.value;
+      saveBoard();
     });
 
     const cooldown = document.createElement("input");
@@ -323,6 +488,7 @@ function renderBoardEditor() {
     cooldown.placeholder = "CD";
     cooldown.addEventListener("change", () => {
       card.cd = numberOrNull(cooldown.value);
+      saveBoard();
     });
 
     const remove = document.createElement("button");
@@ -334,6 +500,7 @@ function renderBoardEditor() {
       if (state.selectedCardId === card.localId) {
         state.selectedCardId = state.cards.at(-1)?.localId ?? null;
       }
+      saveBoard();
       renderCards();
     });
 
@@ -372,6 +539,19 @@ async function captureScreen() {
   });
 }
 
+function validateBoard() {
+  const errors = [];
+  state.cards.forEach((card, index) => {
+    if (!itemRef(card.id)) {
+      errors.push(`Card ${index + 1} is not in BazaarDB: ${card.name ?? card.id}`);
+    }
+    if (!validBox(card.bbox)) {
+      errors.push(`Card ${index + 1} has an invalid hover box: ${card.name ?? card.id}`);
+    }
+  });
+  return errors;
+}
+
 function buildPayload() {
   return {
     hero: refs.hero.value.trim() || "vanessa",
@@ -380,20 +560,23 @@ function buildPayload() {
     health: numberOrNull(refs.health.value),
     maxHealth: numberOrNull(refs.maxHealth.value),
     phase: refs.phase.value,
-    board: state.cards.map((card, index) => ({
-      slot: index,
-      id: card.id,
-      tier: card.tier,
-      enchants: [],
-      cd: card.cd,
-      ammo: card.ammo,
-      bbox: {
-        x: Number(card.bbox.x.toFixed(4)),
-        y: Number(card.bbox.y.toFixed(4)),
-        w: Number(card.bbox.w.toFixed(4)),
-        h: Number(card.bbox.h.toFixed(4)),
-      },
-    })),
+    board: state.cards.map((card, index) => {
+      const ref = itemRef(card.id);
+      return {
+        slot: index,
+        id: ref.id,
+        tier: card.tier,
+        enchants: [],
+        cd: card.cd,
+        ammo: card.ammo,
+        bbox: {
+          x: Number(card.bbox.x.toFixed(4)),
+          y: Number(card.bbox.y.toFixed(4)),
+          w: Number(card.bbox.w.toFixed(4)),
+          h: Number(card.bbox.h.toFixed(4)),
+        },
+      };
+    }),
     stash: [],
     skills: [],
   };
@@ -419,6 +602,12 @@ async function publishSnapshot() {
 
   if (!ebsUrl || !channelId || !token) {
     setStatus("EBS URL, channel ID, and token are required.");
+    return;
+  }
+
+  const validationErrors = validateBoard();
+  if (validationErrors.length) {
+    setStatus("Layout is not ready to publish.", validationErrors);
     return;
   }
 
@@ -462,6 +651,42 @@ function setAutoPublish(enabled) {
   });
 }
 
+function setupInstallApp() {
+  if (!refs.installApp) {
+    return;
+  }
+
+  refs.installApp.hidden = true;
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    state.installPrompt = event;
+    refs.installApp.hidden = false;
+  });
+
+  refs.installApp.addEventListener("click", async () => {
+    if (!state.installPrompt) {
+      return;
+    }
+    const promptEvent = state.installPrompt;
+    state.installPrompt = null;
+    refs.installApp.hidden = true;
+    promptEvent.prompt();
+    await promptEvent.userChoice.catch(() => null);
+  });
+}
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator) || window.location.protocol !== "https:") {
+    return;
+  }
+
+  navigator.serviceWorker
+    .register("./companion-sw.js")
+    .catch(() => {
+      setStatus("Companion app install cache is unavailable.");
+    });
+}
+
 function bindInputs() {
   for (const input of [
     refs.ebsUrl,
@@ -479,6 +704,18 @@ function bindInputs() {
 
   refs.itemSearch.addEventListener("input", renderSearchResults);
   refs.addSelected.addEventListener("click", addSelectedItem);
+  refs.assignSelected.addEventListener("click", assignSelectedItem);
+  refs.saveLayout.addEventListener("click", () => {
+    saveSettings();
+    saveBoard();
+    setStatus(`Layout saved: ${state.cards.length} cards.`);
+  });
+  refs.clearLayout.addEventListener("click", () => {
+    if (state.cards.length && !window.confirm("Clear all cards from this layout?")) {
+      return;
+    }
+    clearBoard();
+  });
   refs.captureScreen.addEventListener("click", () => {
     captureScreen().catch((error) => {
       setStatus(error instanceof Error ? error.message : "Capture failed.");
@@ -496,8 +733,11 @@ function bindInputs() {
 
 async function init() {
   loadSettings();
+  setupInstallApp();
+  registerServiceWorker();
   bindInputs();
   await loadItems();
+  loadBoard();
   renderCards();
 }
 
