@@ -1,5 +1,7 @@
 import { formatValue, parseEnvelope, titleCase } from "./protocol.js";
 
+const MIN_ITEM_CONFIDENCE = 0.98;
+
 const refs = {
   hero: document.querySelector("#hero"),
   status: document.querySelector("#status"),
@@ -72,6 +74,10 @@ function validBox(box) {
       box.x + box.w <= 1 &&
       box.y + box.h <= 1,
   );
+}
+
+function validItemConfidence(itemState) {
+  return (itemState.confidence ?? 1) >= MIN_ITEM_CONFIDENCE;
 }
 
 function uniqueLabels(items) {
@@ -230,7 +236,7 @@ function renderHotspots(payload) {
   for (const itemState of payload.board ?? []) {
     const ref = itemRef(itemState.id);
     const box = itemState.bbox;
-    if (!ref || !validBox(box)) {
+    if (!ref || !validBox(box) || !validItemConfidence(itemState)) {
       continue;
     }
 

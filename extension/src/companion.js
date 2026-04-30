@@ -565,6 +565,8 @@ function buildPayload() {
       return {
         slot: index,
         id: ref.id,
+        source: "manual",
+        confidence: 1,
         tier: card.tier,
         enchants: [],
         cd: card.cd,

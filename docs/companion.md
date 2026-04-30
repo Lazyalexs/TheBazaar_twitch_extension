@@ -45,10 +45,13 @@ Viewer hover zones are deterministic:
 - each published board item must use an item id that exists in the bundled
   BazaarDB data file;
 - each board item must include a normalized `bbox` inside the video frame;
+- each automatically recognized item must meet the viewer confidence threshold;
 - the viewer does not create fallback boxes.
 
 If an item id is unknown or a box is missing/invalid, that item is skipped
 instead of showing a placeholder or a random card.
+The same rule applies to future vision recognition: low-confidence matches are
+not shown to viewers.
 
 ## Current Scope
 
@@ -65,6 +68,8 @@ recognition while keeping the same EBS payload:
     {
       "slot": 0,
       "id": "dishwasher",
+      "source": "manual",
+      "confidence": 1,
       "tier": "gold",
       "bbox": { "x": 0.315, "y": 0.52, "w": 0.112, "h": 0.2 }
     }

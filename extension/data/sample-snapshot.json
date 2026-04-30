@@ -16,6 +16,8 @@
       {
         "slot": 0,
         "id": "dishwasher",
+        "source": "manual",
+        "confidence": 1,
         "tier": "gold",
         "enchants": [],
         "cd": 3.2,
@@ -30,6 +32,8 @@
       {
         "slot": 1,
         "id": "cutlass",
+        "source": "manual",
+        "confidence": 1,
         "tier": "silver",
         "enchants": ["burn"],
         "cd": 4.5,
