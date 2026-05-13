@@ -277,13 +277,10 @@ class VisualCardResolver:
             return None
 
         wanted_size = normalized_size(size)
-        candidates = [
-            ref
-            for ref in self._load_refs()
-            if ref.size == wanted_size
-        ]
+        all_refs = self._load_refs()
+        candidates = [ref for ref in all_refs if ref.size == wanted_size]
         if not candidates:
-            return None
+            candidates = all_refs
 
         target_signatures = [signature(variant) for variant in crop_variants(crop)]
         best_ref: ItemArtRef | None = None
