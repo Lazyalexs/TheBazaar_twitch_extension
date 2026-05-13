@@ -7,7 +7,7 @@ from .database import SUPPORTED_LANGUAGES, normalize_language
 
 CONTACT_EMAIL = "adeptas3@gmail.com"
 DISCORD_URL = ""
-STREAMER_APP_DOWNLOAD_URL = "/downloads/TheBazaarLiveBoardCompanion.exe"
+STREAMER_APP_DOWNLOAD_URL = "/downloads/TheBazaarLiveBoardCompanion.zip"
 SHOW_STREAMER_APP_DOWNLOAD = True
 
 
