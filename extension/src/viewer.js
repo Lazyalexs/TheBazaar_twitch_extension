@@ -163,8 +163,7 @@ function renderEffects(ref, itemState) {
         ];
   for (const line of effectLines) {
     const paragraph = document.createElement("p");
-    const truncated = String(line).length > 120 ? String(line).slice(0, 120) + "…" : line;
-    paragraph.textContent = truncated;
+    paragraph.textContent = line;
     lines.append(paragraph);
   }
 
@@ -188,7 +187,13 @@ function renderTooltip(itemState, anchor) {
   const types = ref?.types?.length ? ref.types : [ref?.type ?? "Item"];
   typeRow.append(typeLabel, renderPillList(types));
 
-  refs.tooltip.append(title, typeRow, renderEffects(ref, itemState));
+  const tagRow = document.createElement("section");
+  tagRow.className = "tooltip-row";
+  const tagLabel = document.createElement("span");
+  tagLabel.textContent = "TAGS";
+  tagRow.append(tagLabel, renderPillList(tagsFor(ref, itemState)));
+
+  refs.tooltip.append(title, typeRow, renderEffects(ref, itemState), tagRow);
   positionTooltip(anchor);
 }
 
@@ -199,7 +204,7 @@ function positionTooltip(anchor) {
     Math.min(180, Math.max(140, window.innerWidth * 0.15), window.innerWidth - 16),
   );
   const height = Math.round(
-    Math.min(200, Math.max(120, window.innerHeight * 0.35), window.innerHeight - 16),
+    Math.min(260, Math.max(140, window.innerHeight * 0.40), window.innerHeight - 16),
   );
   tooltip.style.width = `${width}px`;
   tooltip.style.maxHeight = `${height}px`;
