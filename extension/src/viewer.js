@@ -187,7 +187,13 @@ function renderTooltip(itemState, anchor) {
   const types = ref?.types?.length ? ref.types : [ref?.type ?? "Item"];
   typeRow.append(typeLabel, renderPillList(types));
 
-  refs.tooltip.append(title, typeRow, renderEffects(ref, itemState));
+  const tagRow = document.createElement("section");
+  tagRow.className = "tooltip-row";
+  const tagLabel = document.createElement("span");
+  tagLabel.textContent = "TAGS";
+  tagRow.append(tagLabel, renderPillList(tagsFor(ref, itemState)));
+
+  refs.tooltip.append(title, typeRow, renderEffects(ref, itemState), tagRow);
   positionTooltip(anchor);
 }
 
