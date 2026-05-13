@@ -163,8 +163,7 @@ function renderEffects(ref, itemState) {
         ];
   for (const line of effectLines) {
     const paragraph = document.createElement("p");
-    const truncated = String(line).length > 120 ? String(line).slice(0, 120) + "…" : line;
-    paragraph.textContent = truncated;
+    paragraph.textContent = line;
     lines.append(paragraph);
   }
 
