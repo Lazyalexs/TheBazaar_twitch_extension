@@ -593,7 +593,7 @@ def _nav(*, lang: str, current: str, public_url: str) -> str:
     return f"""
     <nav class="topbar">
       <a class="brand" href="{escape(new_url)}" aria-label="{escape(text["brand"])}">
-        <span class="mark">BZ</span><span>{escape(text["brand"])}</span>
+        <img src="/image/logo.png" alt="" class="brand-logo" height="32"><span>{escape(text["brand"])}</span>
       </a>
       <div class="nav-actions">
         {download}
@@ -666,6 +666,10 @@ def render_landing_page(*, language: str, public_url: str) -> str:
 <html lang="{lang}">
 <head>
   <meta charset="utf-8">
+  <link rel="icon" type="image/png" sizes="32x32" href="/image/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/image/favicon-16x16.png">
+  <link rel="shortcut icon" href="/image/favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="/image/apple-touch-icon.png">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{escape(title)}</title>
   {_seo_head(title=title, description=description, canonical_url=canonical_url, lang=lang)}
@@ -743,6 +747,10 @@ def render_registration_page(
 <html lang="{lang}">
 <head>
   <meta charset="utf-8">
+  <link rel="icon" type="image/png" sizes="32x32" href="/image/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/image/favicon-16x16.png">
+  <link rel="shortcut icon" href="/image/favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="/image/apple-touch-icon.png">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{escape(title)}</title>
   {_seo_head(title=title, description=description, canonical_url=canonical_url, lang=lang)}
