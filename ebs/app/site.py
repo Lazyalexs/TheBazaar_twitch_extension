@@ -666,9 +666,10 @@ def render_landing_page(*, language: str, public_url: str) -> str:
 <html lang="{lang}">
 <head>
   <meta charset="utf-8">
+  <link rel="icon" type="image/png" sizes="48x48" href="/image/favicon-48x48.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/image/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/image/favicon-16x16.png">
-  <link rel="shortcut icon" href="/image/favicon.ico">
+  <link rel="icon" href="/image/favicon.ico">
   <link rel="apple-touch-icon" sizes="180x180" href="/image/apple-touch-icon.png">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{escape(title)}</title>
@@ -747,9 +748,10 @@ def render_registration_page(
 <html lang="{lang}">
 <head>
   <meta charset="utf-8">
+  <link rel="icon" type="image/png" sizes="48x48" href="/image/favicon-48x48.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/image/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/image/favicon-16x16.png">
-  <link rel="shortcut icon" href="/image/favicon.ico">
+  <link rel="icon" href="/image/favicon.ico">
   <link rel="apple-touch-icon" sizes="180x180" href="/image/apple-touch-icon.png">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{escape(title)}</title>
