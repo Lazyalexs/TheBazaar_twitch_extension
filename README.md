@@ -52,6 +52,20 @@ Health check:
 http://127.0.0.1:8000/health
 ```
 
+Streamer registration page:
+
+```text
+http://127.0.0.1:8000/register?lang=ru
+```
+
+Registration writes streamers to `EBS_DATABASE_PATH` and returns a private
+Companion Token once. The EBS stores only the token hash. In production,
+`EBS_PUBLIC_URL` is the public site URL and `EBS_API_URL` is the API origin.
+Configure `EBS_SMTP_HOST` and `EBS_SMTP_FROM` to also send the Twitch Nick and
+Companion Token to the streamer's email address.
+If the server provider blocks SMTP ports, set `EBS_MAIL_PROVIDER=yandex_postbox`
+and configure Yandex Cloud Postbox HTTPS credentials instead.
+
 Local viewer with EBS polling:
 
 ```text

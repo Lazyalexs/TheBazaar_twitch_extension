@@ -28,7 +28,8 @@ MOVE_SIMPLE_RE = re.compile(r"Successfully moved card ([^\s]+) to Socket_(\d+)")
 DISPOSED_RE = re.compile(r"Cards Disposed: (.*)")
 STATE_RE = re.compile(r"State changed from \[[^\]]+\] to \[([^\]]+)\]")
 
-SIZE_SPANS = {"Small": 1, "Medium": 2, "Large": 3}
+ITEM_SIZES = {"small", "medium", "large"}
+UNKNOWN_ITEM_PREFIX = "unknown:"
 DEFAULT_FRAME_WIDTH = 1920
 DEFAULT_FRAME_HEIGHT = 1080
 PIXEL_BOX_PROFILES: dict[str, dict[str, float]] = {
@@ -36,23 +37,29 @@ PIXEL_BOX_PROFILES: dict[str, dict[str, float]] = {
         "frame_width": 1920,
         "frame_height": 1080,
         "board_left": 30,
+        "opponent_board_top": 130,
         "board_top": 556.5,
         "socket_step": 157.5,
-        "small_width": 177,
+        "small_width": 132,
+        "medium_width": 216,
+        "large_width": 324,
         "box_height": 216,
-        "pad_x": 12,
-        "pad_y": 6,
+        "pad_x": 9,
+        "pad_y": 4.5,
     },
     "720p": {
         "frame_width": 1280,
         "frame_height": 720,
         "board_left": 20,
+        "opponent_board_top": 86.5,
         "board_top": 371,
         "socket_step": 105,
-        "small_width": 118,
+        "small_width": 88,
+        "medium_width": 144,
+        "large_width": 216,
         "box_height": 144,
-        "pad_x": 8,
-        "pad_y": 4,
+        "pad_x": 6,
+        "pad_y": 3,
     }
 }
 TIER_MAP = {
@@ -76,11 +83,16 @@ class TemplateInfo:
 class BoxCalibration:
     board_x: float = 0.09
     board_y: float = 0.52
+    opponent_board_y: float = 0.13
+    board_bottom_y: float | None = None
     socket_step: float = 0.075
-    small_width: float = 0.105
+    row_break: int | None = None
+    small_width: float = 0.07
+    medium_width: float = 0.1125
+    large_width: float = 0.16875
     box_height: float = 0.2
-    pad_x: float = 0.018
-    pad_y: float = 0.005
+    pad_x: float = 0.005
+    pad_y: float = 0.0037
 
 
 class BazaarLogState:
@@ -88,12 +100,15 @@ class BazaarLogState:
         self,
         templates: dict[str, TemplateInfo],
         calibration: BoxCalibration | None = None,
+        visual_resolver: Any | None = None,
     ) -> None:
         self.templates = templates
         self.calibration = calibration or BoxCalibration()
+        self.visual_resolver = visual_resolver
         self.instance_to_template: dict[str, str] = {}
         self.instance_to_size: dict[str, str] = {}
         self.board: dict[int, str] = {}
+        self.opponent_board: dict[int, str] = {}
         self.stash: dict[int, str] = {}
         self.phase = "unknown"
 
@@ -119,6 +134,7 @@ class BazaarLogState:
         elif "EndRun" in state:
             self.phase = "game_over"
             self.board.clear()
+            self.opponent_board.clear()
             self.stash.clear()
 
     def _apply_purchase(self, line: str) -> None:
@@ -146,19 +162,25 @@ class BazaarLogState:
         if "Cards Spawned:" not in line:
             return
 
-        entries = [
-            match.groups()
-            for match in SPAWN_RE.finditer(line)
-            if match.group(2) == "Player"
+        entries = [match.groups() for match in SPAWN_RE.finditer(line)]
+        player_entries = [entry for entry in entries if entry[1] == "Player"]
+        opponent_entries = [entry for entry in entries if entry[1] == "Opponent"]
+        hand_entries = [entry for entry in player_entries if entry[2] == "Hand"]
+        opponent_hand_entries = [
+            entry for entry in opponent_entries if entry[2] == "Hand"
         ]
-        hand_entries = [entry for entry in entries if entry[2] == "Hand"]
 
         if hand_entries:
             self.board.clear()
             for instance_id, _owner, _section, socket, size in hand_entries:
                 self._set_board(int(socket), instance_id, size)
 
-        for instance_id, _owner, section, socket, size in entries:
+        if opponent_hand_entries:
+            self.opponent_board.clear()
+            for instance_id, _owner, _section, socket, size in opponent_hand_entries:
+                self._set_opponent_board(int(socket), instance_id, size)
+
+        for instance_id, _owner, section, socket, size in player_entries:
             if section == "Stash":
                 self._set_stash(int(socket), instance_id, size)
 
@@ -195,6 +217,11 @@ class BazaarLogState:
             for socket, instance_id in self.board.items()
             if instance_id not in disposed
         }
+        self.opponent_board = {
+            socket: instance_id
+            for socket, instance_id in self.opponent_board.items()
+            if instance_id not in disposed
+        }
         self.stash = {
             socket: instance_id
             for socket, instance_id in self.stash.items()
@@ -204,6 +231,12 @@ class BazaarLogState:
     def _set_board(self, socket: int, instance_id: str, size: str | None = None) -> None:
         self._remove_instance(instance_id)
         self.board[socket] = instance_id
+        if size:
+            self.instance_to_size[instance_id] = size
+
+    def _set_opponent_board(self, socket: int, instance_id: str, size: str | None = None) -> None:
+        self._remove_instance(instance_id)
+        self.opponent_board[socket] = instance_id
         if size:
             self.instance_to_size[instance_id] = size
 
@@ -219,6 +252,11 @@ class BazaarLogState:
             for socket, current in self.board.items()
             if current != instance_id
         }
+        self.opponent_board = {
+            socket: current
+            for socket, current in self.opponent_board.items()
+            if current != instance_id
+        }
         self.stash = {
             socket: current
             for socket, current in self.stash.items()
@@ -226,24 +264,31 @@ class BazaarLogState:
         }
 
     def payload(self, patch: str) -> dict[str, Any]:
+        if self.visual_resolver and hasattr(self.visual_resolver, "begin_frame"):
+            self.visual_resolver.begin_frame()
+        board_items = self._board_items()
+        opponent_items = self._board_items(opponent=True)
         return {
             "patch": patch,
             "hero": None,
             "phase": self.phase,
-            "board": self._board_items(),
+            "board": [*opponent_items, *board_items],
             "stash": [],
             "skills": [],
         }
 
-    def _board_items(self) -> list[dict[str, Any]]:
+    def _board_items(self, opponent: bool = False) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
-        for slot, instance_id in sorted(self.board.items()):
+        board = self.opponent_board if opponent else self.board
+        for slot, instance_id in sorted(board.items()):
             template_id = self.instance_to_template.get(instance_id)
             if not template_id:
+                items.append(self._unknown_board_item(slot, instance_id, opponent))
                 continue
 
             info = self.templates.get(template_id)
             if not info:
+                items.append(self._unknown_board_item(slot, instance_id, opponent))
                 continue
 
             size = self.instance_to_size.get(instance_id, info.size)
@@ -257,10 +302,57 @@ class BazaarLogState:
                     "enchants": [],
                     "cd": info.cooldown,
                     "ammo": None,
-                    "bbox": socket_box(slot, size, self.calibration),
+                    "bbox": socket_box(slot, size, self.calibration, opponent),
                 }
             )
         return items
+
+    def _unknown_board_item(
+        self,
+        slot: int,
+        instance_id: str,
+        opponent: bool = False,
+    ) -> dict[str, Any]:
+        size = self.instance_to_size.get(instance_id, "Small")
+        bbox = socket_box(slot, size, self.calibration, opponent)
+        match = self._visual_match(slot, instance_id, size, bbox)
+        if match is not None:
+            return {
+                "slot": slot,
+                "id": str(match.title),
+                "source": "vision",
+                "confidence": float(getattr(match, "confidence", 0.99)),
+                "tier": getattr(match, "tier", None),
+                "enchants": [],
+                "cd": getattr(match, "cooldown", None),
+                "ammo": None,
+                "bbox": bbox,
+            }
+        return {
+            "slot": slot,
+            "id": f"{UNKNOWN_ITEM_PREFIX}{instance_id}",
+            "source": "game",
+            "confidence": 1,
+            "tier": None,
+            "enchants": [],
+            "cd": None,
+            "ammo": None,
+            "bbox": bbox,
+        }
+
+    def _visual_match(
+        self,
+        slot: int,
+        instance_id: str,
+        size: str,
+        bbox: dict[str, float],
+    ) -> Any | None:
+        if self.visual_resolver is None:
+            return None
+        try:
+            return self.visual_resolver.match(slot, instance_id, size, bbox)
+        except Exception:
+            return None
 
 
 def default_game_dir() -> Path:
@@ -335,22 +427,54 @@ def build_state(
     log_text: str,
     templates: dict[str, TemplateInfo],
     calibration: BoxCalibration | None = None,
+    visual_resolver: Any | None = None,
 ) -> BazaarLogState:
-    state = BazaarLogState(templates, calibration)
+    state = BazaarLogState(templates, calibration, visual_resolver)
     for line in log_text.splitlines():
         state.apply_line(line)
     return state
 
 
-def socket_box(socket: int, size: str, calibration: BoxCalibration) -> dict[str, float]:
-    span = SIZE_SPANS.get(size, 1)
-    x = calibration.board_x + socket * calibration.socket_step - calibration.pad_x
-    y = calibration.board_y - calibration.pad_y
-    width = (
-        calibration.small_width
-        + (span - 1) * calibration.socket_step
-        + calibration.pad_x * 2
-    )
+def normalized_size(size: str | None) -> str:
+    clean = str(size or "Small").strip().lower()
+    return clean if clean in ITEM_SIZES else "small"
+
+
+def box_width_for_size(size: str | None, calibration: BoxCalibration) -> float:
+    size_key = normalized_size(size)
+    if size_key == "large":
+        return calibration.large_width
+    if size_key == "medium":
+        return calibration.medium_width
+    return calibration.small_width
+
+
+def socket_grid_position(
+    socket: int,
+    calibration: BoxCalibration,
+    opponent: bool = False,
+) -> tuple[int, float]:
+    if opponent:
+        return socket, calibration.opponent_board_y
+    if (
+        calibration.row_break is not None
+        and calibration.board_bottom_y is not None
+        and socket >= calibration.row_break
+    ):
+        return socket - calibration.row_break, calibration.board_bottom_y
+    return socket, calibration.board_y
+
+
+def socket_box(
+    socket: int,
+    size: str,
+    calibration: BoxCalibration,
+    opponent: bool = False,
+) -> dict[str, float]:
+    column, row_y = socket_grid_position(socket, calibration, opponent)
+    x = calibration.board_x + column * calibration.socket_step - calibration.pad_x
+    y = row_y - calibration.pad_y
+    width = box_width_for_size(size, calibration) + calibration.pad_x * 2
     height = calibration.box_height + calibration.pad_y * 2
     x = max(0, min(0.98, x))
     y = max(0, min(0.98, y))
@@ -416,6 +540,11 @@ def parse_resolution(value: str | None) -> tuple[int, int] | None:
     return width, height
 
 
+def is_bazaar_game_window_title(title: str) -> bool:
+    lower = title.strip().lower()
+    return "the bazaar" in lower and "companion" not in lower
+
+
 def detect_game_window_size() -> tuple[int, int] | None:
     if os.name != "nt":
         return None
@@ -439,7 +568,7 @@ def detect_game_window_size() -> tuple[int, int] | None:
 
         title_buffer = ctypes.create_unicode_buffer(title_length + 1)
         user32.GetWindowTextW(hwnd, title_buffer, title_length + 1)
-        if "the bazaar" not in title_buffer.value.lower():
+        if not is_bazaar_game_window_title(title_buffer.value):
             return True
 
         rect = wintypes.RECT()
@@ -494,10 +623,14 @@ def build_calibration(args: argparse.Namespace) -> BoxCalibration:
         value is not None
         for value in [
             args.board_left_px,
+            args.opponent_board_top_px,
             args.board_top_px,
+            args.board_bottom_top_px,
             args.socket_step_px,
             args.socket_9_left_px,
             args.small_width_px,
+            args.medium_width_px,
+            args.large_width_px,
             args.box_height_px,
             args.pad_x_px,
             args.pad_y_px,
@@ -509,8 +642,13 @@ def build_calibration(args: argparse.Namespace) -> BoxCalibration:
         return BoxCalibration(
             board_x=args.board_x,
             board_y=args.board_y,
+            opponent_board_y=args.opponent_board_y,
+            board_bottom_y=args.board_bottom_y,
             socket_step=args.socket_step,
+            row_break=args.row_break,
             small_width=args.small_width,
+            medium_width=args.medium_width,
+            large_width=args.large_width,
             box_height=args.box_height,
             pad_x=args.pad_x,
             pad_y=args.pad_y,
@@ -518,6 +656,8 @@ def build_calibration(args: argparse.Namespace) -> BoxCalibration:
 
     def profile_px(name: str, axis: str) -> float | None:
         if profile is None:
+            return None
+        if name not in profile:
             return None
         if axis == "x":
             return profile[name] * frame_width / profile["frame_width"]
@@ -532,6 +672,16 @@ def build_calibration(args: argparse.Namespace) -> BoxCalibration:
         args.board_top_px,
         profile_px("board_top", "y"),
         args.board_y * frame_height,
+    )
+    opponent_board_top_px = first_float(
+        args.opponent_board_top_px,
+        profile_px("opponent_board_top", "y"),
+        args.opponent_board_y * frame_height,
+    )
+    board_bottom_top_px = first_float(
+        args.board_bottom_top_px,
+        profile_px("board_bottom_top", "y"),
+        None if args.board_bottom_y is None else args.board_bottom_y * frame_height,
     )
     if args.socket_9_left_px is not None:
         socket_step_px = (args.socket_9_left_px - board_left_px) / 9
@@ -555,6 +705,18 @@ def build_calibration(args: argparse.Namespace) -> BoxCalibration:
         profile_px("box_height", "y"),
         args.box_height * frame_height,
     )
+    medium_width_px = first_float(
+        args.medium_width_px,
+        profile_px("medium_width", "x"),
+        args.medium_width * frame_width,
+        box_height_px,
+    )
+    large_width_px = first_float(
+        args.large_width_px,
+        profile_px("large_width", "x"),
+        args.large_width * frame_width,
+        box_height_px * 1.5,
+    )
     pad_x_px = first_float(
         args.pad_x_px,
         profile_px("pad_x", "x"),
@@ -569,8 +731,17 @@ def build_calibration(args: argparse.Namespace) -> BoxCalibration:
     return BoxCalibration(
         board_x=board_left_px / frame_width,
         board_y=board_top_px / frame_height,
+        opponent_board_y=opponent_board_top_px / frame_height,
+        board_bottom_y=(
+            None if board_bottom_top_px is None else board_bottom_top_px / frame_height
+        ),
         socket_step=socket_step_px / frame_width,
+        row_break=args.row_break if args.row_break is not None else (
+            None if profile is None or "row_break" not in profile else int(profile["row_break"])
+        ),
         small_width=small_width_px / frame_width,
+        medium_width=medium_width_px / frame_width,
+        large_width=large_width_px / frame_width,
         box_height=box_height_px / frame_height,
         pad_x=pad_x_px / frame_width,
         pad_y=pad_y_px / frame_height,
@@ -631,6 +802,28 @@ def main() -> None:
         help="Box geometry profile: 1080p, 720p, or normalized.",
     )
     parser.add_argument(
+        "--visual-fallback",
+        action="store_true",
+        help="Try screenshot/art matching for game-log items without TemplateId.",
+    )
+    parser.add_argument(
+        "--items-data",
+        type=Path,
+        default=None,
+        help="Path to extension/data/items.min.json for visual fallback.",
+    )
+    parser.add_argument(
+        "--visual-threshold",
+        type=float,
+        default=float(os.environ.get("BAZAAR_VISUAL_THRESHOLD", "0.24")),
+    )
+    parser.add_argument(
+        "--visual-margin",
+        type=float,
+        default=float(os.environ.get("BAZAAR_VISUAL_MARGIN", "0.035")),
+        help="Minimum score gap between the best and second-best visual matches.",
+    )
+    parser.add_argument(
         "--stream-width",
         type=int,
         default=optional_env_int("BAZAAR_STREAM_WIDTH"),
@@ -644,14 +837,40 @@ def main() -> None:
     parser.add_argument("--board-x", type=float, default=env_float("BAZAAR_BOARD_X", 0.09))
     parser.add_argument("--board-y", type=float, default=env_float("BAZAAR_BOARD_Y", 0.52))
     parser.add_argument(
+        "--opponent-board-y",
+        type=float,
+        default=env_float("BAZAAR_OPPONENT_BOARD_Y", 0.13),
+    )
+    parser.add_argument(
+        "--board-bottom-y",
+        type=float,
+        default=optional_env_float("BAZAAR_BOARD_BOTTOM_Y"),
+    )
+    parser.add_argument(
         "--socket-step",
         type=float,
         default=env_float("BAZAAR_SOCKET_STEP", 0.075),
     )
     parser.add_argument(
+        "--row-break",
+        type=int,
+        default=optional_env_int("BAZAAR_ROW_BREAK"),
+        help="First socket index on the second board row; unset keeps a single row.",
+    )
+    parser.add_argument(
         "--small-width",
         type=float,
-        default=env_float("BAZAAR_SMALL_WIDTH", 0.105),
+        default=env_float("BAZAAR_SMALL_WIDTH", 0.07),
+    )
+    parser.add_argument(
+        "--medium-width",
+        type=float,
+        default=env_float("BAZAAR_MEDIUM_WIDTH", 0.1125),
+    )
+    parser.add_argument(
+        "--large-width",
+        type=float,
+        default=env_float("BAZAAR_LARGE_WIDTH", 0.16875),
     )
     parser.add_argument(
         "--box-height",
@@ -681,6 +900,26 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--opponent-board-top-px",
+        "--opponent-board-y-px",
+        dest="opponent_board_top_px",
+        type=float,
+        default=first_float(
+            optional_env_float("BAZAAR_OPPONENT_BOARD_TOP_PX"),
+            optional_env_float("BAZAAR_OPPONENT_BOARD_Y_PX"),
+        ),
+    )
+    parser.add_argument(
+        "--board-bottom-top-px",
+        "--board-bottom-y-px",
+        dest="board_bottom_top_px",
+        type=float,
+        default=first_float(
+            optional_env_float("BAZAAR_BOARD_BOTTOM_TOP_PX"),
+            optional_env_float("BAZAAR_BOARD_BOTTOM_Y_PX"),
+        ),
+    )
+    parser.add_argument(
         "--socket-step-px",
         type=float,
         default=optional_env_float("BAZAAR_SOCKET_STEP_PX"),
@@ -699,6 +938,16 @@ def main() -> None:
         "--small-width-px",
         type=float,
         default=optional_env_float("BAZAAR_SMALL_WIDTH_PX"),
+    )
+    parser.add_argument(
+        "--medium-width-px",
+        type=float,
+        default=optional_env_float("BAZAAR_MEDIUM_WIDTH_PX"),
+    )
+    parser.add_argument(
+        "--large-width-px",
+        type=float,
+        default=optional_env_float("BAZAAR_LARGE_WIDTH_PX"),
     )
     parser.add_argument(
         "--box-height-px",
@@ -720,6 +969,18 @@ def main() -> None:
     cards_cache = args.cards_cache or default_cards_cache(args.game_dir)
     patch, templates = load_templates(cards_cache)
     calibration = build_calibration(args)
+    visual_resolver = None
+    if args.visual_fallback:
+        try:
+            from companion.vision_matcher import VisualCardResolver
+        except ModuleNotFoundError:
+            from vision_matcher import VisualCardResolver
+
+        visual_resolver = VisualCardResolver(
+            items_data_path=args.items_data,
+            threshold=args.visual_threshold,
+            ambiguity_margin=args.visual_margin,
+        )
     log_paths = [args.game_dir / "Player-prev.log", args.game_dir / "Player.log"]
 
     seq = 1
@@ -728,7 +989,12 @@ def main() -> None:
     last_sent_at = 0.0
 
     while True:
-        state = build_state(read_log_text(log_paths), templates, calibration)
+        state = build_state(
+            read_log_text(log_paths),
+            templates,
+            calibration,
+            visual_resolver=visual_resolver,
+        )
         payload = state.payload(patch)
         payload_key = compact_json(payload)
         now = time.monotonic()

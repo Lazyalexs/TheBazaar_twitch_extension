@@ -1,6 +1,7 @@
 import { formatValue, parseEnvelope, titleCase } from "./protocol.js";
 
 const MIN_ITEM_CONFIDENCE = 0.98;
+const UNKNOWN_ITEM_PREFIX = "unknown:";
 
 const refs = {
   hero: document.querySelector("#hero"),
@@ -58,6 +59,17 @@ function normalizeItemId(value) {
 
 function itemRef(id) {
   return state.items.get(normalizeItemId(id));
+}
+
+function isUnknownItem(itemState) {
+  return String(itemState?.id ?? "").toLowerCase().startsWith(UNKNOWN_ITEM_PREFIX);
+}
+
+function itemName(ref, itemState) {
+  if (ref?.name) {
+    return ref.name;
+  }
+  return isUnknownItem(itemState) ? "Unknown item" : String(itemState?.id ?? "Unknown item");
 }
 
 function validBox(box) {
@@ -143,7 +155,12 @@ function renderEffects(ref, itemState) {
   const effectLines =
     ref?.effects?.length
       ? ref.effects
-      : [ref?.tooltip ?? "Unknown item data for this patch."];
+      : [
+          ref?.tooltip ??
+            (isUnknownItem(itemState)
+              ? "Waiting for game template data."
+              : "Unknown item data for this patch."),
+        ];
   for (const line of effectLines) {
     const paragraph = document.createElement("p");
     paragraph.textContent = line;
@@ -156,15 +173,12 @@ function renderEffects(ref, itemState) {
 
 function renderTooltip(itemState, anchor) {
   const ref = itemRef(itemState.id);
-  if (!ref) {
-    return;
-  }
   window.clearTimeout(state.hideTooltipTimer);
   refs.tooltip.hidden = false;
   refs.tooltip.innerHTML = "";
 
   const title = document.createElement("h2");
-  title.textContent = ref.name;
+  title.textContent = itemName(ref, itemState);
 
   const typeRow = document.createElement("section");
   typeRow.className = "tooltip-row";
@@ -194,10 +208,10 @@ function positionTooltip(anchor) {
   const tooltip = refs.tooltip;
   const rect = anchor.getBoundingClientRect();
   const width = Math.round(
-    Math.min(320, Math.max(240, window.innerWidth * 0.28), window.innerWidth - 16),
+    Math.min(213, Math.max(160, window.innerWidth * 0.187), window.innerWidth - 16),
   );
   const height = Math.round(
-    Math.min(430, Math.max(260, window.innerHeight * 0.78), window.innerHeight - 16),
+    Math.min(287, Math.max(173, window.innerHeight * 0.52), window.innerHeight - 16),
   );
   tooltip.style.width = `${width}px`;
   tooltip.style.maxHeight = `${height}px`;
@@ -240,25 +254,34 @@ function renderHotspots(payload) {
   refs.board.innerHTML = "";
   refs.board.classList.toggle(
     "debug-hotspots",
-    state.debugUi && payload.debugHotspots === true,
+    state.debugUi || payload.debugHotspots === true,
   );
-  for (const itemState of payload.board ?? []) {
+  const hotspotItems = [
+    ...(payload.opponentBoard ?? []).map((item) => ({ item, side: "opponent" })),
+    ...(payload.board ?? []).map((item) => ({ item, side: "player" })),
+  ];
+  for (const { item: itemState, side } of hotspotItems) {
     const ref = itemRef(itemState.id);
     const box = itemState.bbox;
-    if (!ref || !validBox(box) || !validItemConfidence(itemState)) {
+    if (
+      (!ref && !isUnknownItem(itemState)) ||
+      !validBox(box) ||
+      !validItemConfidence(itemState)
+    ) {
       continue;
     }
 
+    const name = itemName(ref, itemState);
     const button = document.createElement("button");
-    button.className = "hotspot";
+    button.className = `hotspot ${side}-hotspot`;
     button.type = "button";
-    button.setAttribute("aria-label", ref.name);
+    button.setAttribute("aria-label", name);
     button.style.left = `${box.x * 100}%`;
     button.style.top = `${box.y * 100}%`;
     button.style.width = `${box.w * 100}%`;
     button.style.height = `${box.h * 100}%`;
     const label = document.createElement("span");
-    label.textContent = ref.name;
+    label.textContent = name;
     button.append(label);
     button.addEventListener("mouseenter", () => renderTooltip(itemState, button));
     button.addEventListener("focus", () => renderTooltip(itemState, button));

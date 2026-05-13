@@ -5,6 +5,7 @@ Push-Location $repoRoot
 try {
   $venvPython = Join-Path $repoRoot '.venv\Scripts\python.exe'
   $python = if (Test-Path $venvPython) { $venvPython } else { 'python' }
+  $itemsData = Resolve-Path (Join-Path $repoRoot 'extension\data\items.min.json')
 
   & $python -m pip install -r companion\requirements-windows.txt
   & $python -m PyInstaller `
@@ -13,6 +14,7 @@ try {
     --windowed `
     --specpath build\pyinstaller-spec `
     --name TheBazaarLiveBoardCompanion `
+    --add-data "$itemsData;extension\data" `
     --collect-submodules companion `
     companion\desktop_app.py
 

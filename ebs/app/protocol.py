@@ -58,6 +58,7 @@ class SnapshotPayload(BaseModel):
     maxHealth: int | None = Field(default=None, ge=0, le=999)
     phase: Phase = "unknown"
     board: list[BoardItem] = Field(default_factory=list, max_length=20)
+    opponentBoard: list[BoardItem] = Field(default_factory=list, max_length=20)
     stash: list[StashItem] = Field(default_factory=list, max_length=30)
     skills: list[SkillItem] = Field(default_factory=list, max_length=20)
 
