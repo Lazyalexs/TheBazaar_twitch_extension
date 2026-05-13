@@ -163,7 +163,8 @@ function renderEffects(ref, itemState) {
         ];
   for (const line of effectLines) {
     const paragraph = document.createElement("p");
-    paragraph.textContent = line;
+    const truncated = String(line).length > 120 ? String(line).slice(0, 120) + "…" : line;
+    paragraph.textContent = truncated;
     lines.append(paragraph);
   }
 
@@ -187,20 +188,7 @@ function renderTooltip(itemState, anchor) {
   const types = ref?.types?.length ? ref.types : [ref?.type ?? "Item"];
   typeRow.append(typeLabel, renderPillList(types));
 
-  const tagRow = document.createElement("section");
-  tagRow.className = "tooltip-row";
-  const tagLabel = document.createElement("span");
-  tagLabel.textContent = "TAGS";
-  tagRow.append(tagLabel, renderPillList(tagsFor(ref, itemState)));
-
-  refs.tooltip.append(title, renderArt(ref), typeRow, renderEffects(ref, itemState));
-  if (ref?.tooltip) {
-    const text = document.createElement("section");
-    text.className = "tooltip-text";
-    text.textContent = ref.tooltip;
-    refs.tooltip.append(text);
-  }
-  refs.tooltip.append(tagRow);
+  refs.tooltip.append(title, typeRow, renderEffects(ref, itemState));
   positionTooltip(anchor);
 }
 
@@ -208,10 +196,10 @@ function positionTooltip(anchor) {
   const tooltip = refs.tooltip;
   const rect = anchor.getBoundingClientRect();
   const width = Math.round(
-    Math.min(213, Math.max(160, window.innerWidth * 0.187), window.innerWidth - 16),
+    Math.min(180, Math.max(140, window.innerWidth * 0.15), window.innerWidth - 16),
   );
   const height = Math.round(
-    Math.min(287, Math.max(173, window.innerHeight * 0.52), window.innerHeight - 16),
+    Math.min(200, Math.max(120, window.innerHeight * 0.35), window.innerHeight - 16),
   );
   tooltip.style.width = `${width}px`;
   tooltip.style.maxHeight = `${height}px`;
