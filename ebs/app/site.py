@@ -562,9 +562,13 @@ def _seo_head(
   <meta property="og:title" content="{escape(title)}">
   <meta property="og:description" content="{escape(description)}">
   <meta property="og:url" content="{escape(canonical_url)}">
-  <meta property="og:image" content="https://thebazaar-twitch.online/image/logo.png">
+  <meta property="og:image" content="https://thebazaar-twitch.online/image/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:locale" content="ru_RU">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:image" content="https://thebazaar-twitch.online/image/logo.png">
+  <meta name="twitter:image" content="https://thebazaar-twitch.online/image/og-image.png">
+  <meta name="twitter:image:alt" content="The Bazaar Live Board - Twitch Extension companion for streamers">
   <meta name="twitter:title" content="{escape(title)}">
   <meta name="twitter:description" content="{escape(description)}">"""
 
@@ -593,7 +597,7 @@ def _nav(*, lang: str, current: str, public_url: str) -> str:
     return f"""
     <nav class="topbar">
       <a class="brand" href="{escape(new_url)}" aria-label="{escape(text["brand"])}">
-        <img src="/image/logo.png" alt="" class="brand-logo" height="32"><span>{escape(text["brand"])}</span>
+        <img src="/image/logo.png" alt="The Bazaar Live Board" class="brand-logo" height="32"><span>{escape(text["brand"])}</span>
       </a>
       <div class="nav-actions">
         {download}
@@ -675,6 +679,21 @@ def render_landing_page(*, language: str, public_url: str) -> str:
   <title>{escape(title)}</title>
   {_seo_head(title=title, description=description, canonical_url=canonical_url, lang=lang)}
   <style>{_styles()}</style>
+  <script type="application/ld+json">
+  {{
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "The Bazaar Live Board",
+    "applicationCategory": "GameApplication",
+    "operatingSystem": "Windows",
+    "description": "Companion для стримеров The Bazaar - распознавание карточек и Twitch Extension оверлей",
+    "offers": {{
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }}
+  }}
+  </script>
 </head>
 <body>
   <main class="shell">
@@ -760,6 +779,14 @@ def render_registration_page(
 </head>
 <body>
   <main class="shell">
+    <script type="application/ld+json">
+    {{
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "The Bazaar Live Board",
+      "url": "https://thebazaar-twitch.online"
+    }}
+    </script>
     {_nav(lang=lang, current="register", public_url=public_url)}
 
     <section class="register-layout">
