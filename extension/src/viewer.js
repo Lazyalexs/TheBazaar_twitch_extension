@@ -204,7 +204,7 @@ function positionTooltip(anchor) {
     Math.min(180, Math.max(140, window.innerWidth * 0.15), window.innerWidth - 16),
   );
   const height = Math.round(
-    Math.min(200, Math.max(120, window.innerHeight * 0.35), window.innerHeight - 16),
+    Math.min(260, Math.max(140, window.innerHeight * 0.40), window.innerHeight - 16),
   );
   tooltip.style.width = `${width}px`;
   tooltip.style.maxHeight = `${height}px`;
