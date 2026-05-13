@@ -1,6 +1,6 @@
 import { formatValue, parseEnvelope, titleCase } from "./protocol.js";
 
-const MIN_ITEM_CONFIDENCE = 0.98;
+const MIN_ITEM_CONFIDENCE = 0.80;
 const UNKNOWN_ITEM_PREFIX = "unknown:";
 
 const refs = {
