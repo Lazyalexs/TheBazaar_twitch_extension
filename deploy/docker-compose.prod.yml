@@ -8,21 +8,8 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8000:8000"
-
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ../extension:/srv/extension:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - ebs
+      - ebs_data:/app/data
 
 volumes:
-  caddy_data:
-  caddy_config:
+  ebs_data:
