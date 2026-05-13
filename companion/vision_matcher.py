@@ -269,6 +269,10 @@ class VisualCardResolver:
 
         if self._screen is None:
             self._screen = capture_game_window()
+            if self._screen is None:
+                print("[vision] ERROR: capture_game_window returned None - game window not found", flush=True)
+            else:
+                print(f"[vision] captured screen {self._screen.size}", flush=True)
         if self._screen is None:
             return None
 
@@ -305,11 +309,15 @@ class VisualCardResolver:
                 second_ref = ref
 
         if best_ref is None or best_score > self.threshold:
+            print(f"[vision] slot={slot} NO MATCH: best={best_ref.title if best_ref else 'None'} score={best_score:.4f} threshold={self.threshold}", flush=True)
             return None
 
         margin = second_score - best_score
         if second_ref is not None and margin < self.ambiguity_margin:
+            print(f"[vision] slot={slot} AMBIGUOUS: {best_ref.title} vs {second_ref.title} margin={margin:.4f}", flush=True)
             return None
+
+        print(f"[vision] slot={slot} MATCH: {best_ref.title} tier={best_ref.tier} score={best_score:.4f} margin={margin:.4f}", flush=True)
 
         match = VisualMatch(
             title=best_ref.title,
