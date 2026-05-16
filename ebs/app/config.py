@@ -76,6 +76,7 @@ class Settings:
     min_send_interval_seconds: float
     companion_tokens: dict[str, str]
     cors_origins: list[str]
+    cors_origin_regex: str | None
 
     @property
     def twitch_configured(self) -> bool:
@@ -89,6 +90,9 @@ class Settings:
 def load_settings() -> Settings:
     load_env_files()
 
+    ebs_env = os.environ.get("EBS_ENV", "development")
+    is_production = ebs_env == "production"
+
     companion_tokens = {
         str(channel_id): str(token)
         for channel_id, token in _load_json_dict(
@@ -96,20 +100,41 @@ def load_settings() -> Settings:
         ).items()
     }
 
-    default_channel = os.environ.get("COMPANION_CHANNEL_ID", "dev-channel")
-    default_token = os.environ.get("COMPANION_SHARED_TOKEN", "dev-companion-token")
+    if is_production:
+        default_channel = os.environ.get("COMPANION_CHANNEL_ID", "")
+        default_token = os.environ.get("COMPANION_SHARED_TOKEN", "")
+    else:
+        default_channel = os.environ.get("COMPANION_CHANNEL_ID", "dev-channel")
+        default_token = os.environ.get("COMPANION_SHARED_TOKEN", "dev-companion-token")
+
     if default_channel and default_token:
         companion_tokens.setdefault(default_channel, default_token)
 
-    cors_origins_raw = os.environ.get("EBS_CORS_ORIGINS", "*")
+    if is_production:
+        cors_origins_raw = os.environ.get("EBS_CORS_ORIGINS")
+        if not cors_origins_raw:
+            raise RuntimeError(
+                "EBS_CORS_ORIGINS must be set explicitly in production"
+            )
+    else:
+        cors_origins_raw = os.environ.get("EBS_CORS_ORIGINS", "*")
+
     cors_origins = [
         origin.strip()
         for origin in cors_origins_raw.split(",")
         if origin.strip()
     ]
 
+    cors_origin_regex_raw = os.environ.get("EBS_CORS_ORIGIN_REGEX", "")
+    if cors_origin_regex_raw:
+        cors_origin_regex = cors_origin_regex_raw
+    elif is_production:
+        cors_origin_regex = r"^https://[a-z0-9-]+\.ext-twitch\.tv$"
+    else:
+        cors_origin_regex = None
+
     return Settings(
-        env=os.environ.get("EBS_ENV", "development"),
+        env=ebs_env,
         public_url=os.environ.get("EBS_PUBLIC_URL", "http://127.0.0.1:8000"),
         dry_run=_as_bool(os.environ.get("EBS_DRY_RUN"), default=True),
         twitch_client_id=os.environ.get("TWITCH_EXTENSION_CLIENT_ID", ""),
@@ -128,5 +153,5 @@ def load_settings() -> Settings:
         ),
         companion_tokens=companion_tokens,
         cors_origins=cors_origins,
+        cors_origin_regex=cors_origin_regex,
     )
-

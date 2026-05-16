@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from typing import Any
+
+import httpx
 
 from .config import Settings
 from .protocol import compact_json
@@ -22,8 +22,23 @@ class TwitchPubSubClient:
 
     def __init__(self, settings: Settings):
         self.settings = settings
+        self._client: httpx.AsyncClient | None = None
 
-    def send_broadcast(
+    def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None:
+            self._client = httpx.AsyncClient(
+                timeout=httpx.Timeout(
+                    connect=5.0, read=8.0, write=5.0, pool=5.0
+                ),
+            )
+        return self._client
+
+    async def aclose(self) -> None:
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
+
+    async def send_broadcast(
         self,
         *,
         channel_id: str,
@@ -43,23 +58,19 @@ class TwitchPubSubClient:
             "message": compact_json(message),
         }
         raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-        request = urllib.request.Request(
-            self.settings.twitch_pubsub_url,
-            data=raw,
-            method="POST",
-            headers={
-                "Authorization": f"Bearer {authorization}",
-                "Client-Id": self.settings.twitch_client_id,
-                "Content-Type": "application/json",
-                "User-Agent": self.user_agent,
-            },
-        )
 
+        client = self._get_client()
         try:
-            with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
-                body = response.read().decode("utf-8", errors="replace")
-                return PubSubSendResult(response.status, body)
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="replace")
-            return PubSubSendResult(exc.code, body)
-
+            response = await client.post(
+                self.settings.twitch_pubsub_url,
+                content=raw,
+                headers={
+                    "Authorization": f"Bearer {authorization}",
+                    "Client-Id": self.settings.twitch_client_id,
+                    "Content-Type": "application/json",
+                    "User-Agent": self.user_agent,
+                },
+            )
+            return PubSubSendResult(response.status_code, response.text)
+        except httpx.RequestError as exc:
+            return PubSubSendResult(status_code=599, body=str(exc))

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hmac
 import time
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Request, status
@@ -10,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import Settings, load_settings
 from .protocol import PubSubEnvelope, compact_size_bytes
 from .rate_limit import InMemoryRateLimiter
-from .security import JwtError, extract_bearer_token, verify_hs256_jwt
+from .security import JwtError, extract_bearer_token, require_role, verify_hs256_jwt
 from .twitch import TwitchPubSubClient
 
 
@@ -19,16 +20,24 @@ rate_limiter = InMemoryRateLimiter(settings.min_send_interval_seconds)
 twitch_client = TwitchPubSubClient(settings)
 latest_by_channel: dict[str, dict[str, Any]] = {}
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    await twitch_client.aclose()
+
 app = FastAPI(
     title="The Bazaar Twitch EBS",
     version="0.1.0",
     docs_url="/docs" if settings.env != "production" else None,
     redoc_url=None,
+    lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
+    allow_origin_regex=settings.cors_origin_regex,
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Bazaar-Companion-Token"],
@@ -57,6 +66,38 @@ def _require_companion_auth(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "invalid_companion_token"},
         )
+
+
+def _authenticate_channel_reader(
+    *,
+    channel_id: str,
+    authorization: str | None,
+    x_bazaar_companion_token: str | None,
+) -> None:
+    """Authenticate a channel read request in production. No-op in development."""
+    if settings.env != "production":
+        return
+
+    bearer = extract_bearer_token(authorization)
+    companion_provided = bearer or x_bazaar_companion_token
+
+    # Try Twitch JWT first.
+    if bearer and settings.twitch_secret_base64:
+        try:
+            payload = verify_hs256_jwt(bearer, settings.twitch_secret_base64)
+            require_role(payload, {"broadcaster", "moderator"})
+            return
+        except (JwtError, HTTPException):
+            pass  # JWT failed; fall through to companion token.
+
+    # Try companion token.
+    expected = _expected_companion_token(channel_id)
+    if expected and companion_provided and hmac.compare_digest(companion_provided, expected):
+        return
+
+    if not authorization and not x_bazaar_companion_token:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"error": "missing_auth"})
+    raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"error": "invalid_auth"})
 
 
 @app.get("/health")
@@ -128,7 +169,7 @@ async def ingest_companion_snapshot(
             "seq": envelope.seq,
         }
 
-    result = twitch_client.send_broadcast(channel_id=channel_id, message=message)
+    result = await twitch_client.send_broadcast(channel_id=channel_id, message=message)
     if result.status_code >= 400:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -151,14 +192,25 @@ async def ingest_companion_snapshot(
 
 
 @app.get("/v1/channels/{channel_id}/latest")
-def get_latest_channel_state(channel_id: str) -> dict[str, Any]:
+def get_latest_channel_state(
+    channel_id: str,
+    authorization: str | None = Header(default=None),
+    x_bazaar_companion_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _authenticate_channel_reader(
+        channel_id=channel_id,
+        authorization=authorization,
+        x_bazaar_companion_token=x_bazaar_companion_token,
+    )
+
     latest = latest_by_channel.get(channel_id)
     if latest is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "no_state"},
         )
-    return latest
+
+    return {k: v for k, v in latest.items() if k != "remote"}
 
 
 @app.post("/v1/extension/setup")
@@ -185,10 +237,17 @@ def extension_setup(
             detail={"error": "invalid_twitch_jwt", "detail": str(exc)},
         ) from exc
 
+    try:
+        require_role(payload, {"broadcaster", "moderator"})
+    except JwtError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": "forbidden_role"},
+        ) from exc
+
     return {
         "ok": True,
         "channelId": payload.get("channel_id"),
         "role": payload.get("role"),
         "extensionVersion": settings.twitch_extension_version,
     }
-

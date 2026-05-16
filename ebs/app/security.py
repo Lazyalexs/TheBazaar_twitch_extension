@@ -61,11 +61,28 @@ def sign_twitch_ebs_jwt(
     return sign_hs256_jwt(payload, decode_extension_secret(secret_base64))
 
 
+def require_role(payload: dict[str, Any], allowed: set[str]) -> None:
+    if payload.get("role") not in allowed:
+        raise JwtError("forbidden_role")
+
+
 def verify_hs256_jwt(token: str, secret_base64: str) -> dict[str, Any]:
     try:
         header_part, payload_part, signature_part = token.split(".", 2)
     except ValueError as exc:
         raise JwtError("Malformed JWT") from exc
+
+    # Decode and validate JWT header
+    try:
+        header = json.loads(_b64url_decode(header_part).decode("utf-8"))
+    except Exception as exc:
+        raise JwtError("Invalid JWT header") from exc
+    if not isinstance(header, dict):
+        raise JwtError("Invalid JWT header")
+    if header.get("alg") != "HS256":
+        raise JwtError("Unsupported JWT algorithm")
+    if header.get("typ") != "JWT":
+        raise JwtError("Invalid JWT type")
 
     secret = decode_extension_secret(secret_base64)
     signing_input = f"{header_part}.{payload_part}".encode("ascii")
@@ -80,7 +97,7 @@ def verify_hs256_jwt(token: str, secret_base64: str) -> dict[str, Any]:
         raise JwtError("Invalid JWT payload") from exc
 
     exp = payload.get("exp")
-    if exp is not None and int(exp) < int(time.time()):
+    if exp is not None and int(exp) < int(time.time()) - 60:
         raise JwtError("Expired JWT")
 
     return payload
