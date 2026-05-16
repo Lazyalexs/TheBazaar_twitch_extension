@@ -40,6 +40,17 @@ function renderTooltip(itemState) {
   copy.textContent = ref?.tooltip ?? "Unknown item data for this patch.";
 
   refs.tooltip.append(title, copy);
+
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "tooltip-close";
+  closeBtn.setAttribute("aria-label", "Close");
+  closeBtn.textContent = "\u00d7";
+  closeBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    refs.tooltip.hidden = true;
+    refs.tooltip.innerHTML = "";
+  });
+  refs.tooltip.append(closeBtn);
 }
 
 function renderSnapshot(envelope) {
@@ -132,10 +143,33 @@ function startLocalPolling(params) {
     : 1000;
 
   setStatus("Polling EBS");
-  pollEbsLatest(baseUrl, channelId).catch(() => setStatus("EBS unavailable"));
-  state.localPollTimer = window.setInterval(() => {
+  const poll = () => {
     pollEbsLatest(baseUrl, channelId).catch(() => setStatus("EBS unavailable"));
-  }, safeIntervalMs);
+  };
+  poll();
+
+  const startTimer = () => {
+    if (state.localPollTimer !== null) return;
+    state.localPollTimer = window.setInterval(poll, safeIntervalMs);
+  };
+  const stopTimer = () => {
+    if (state.localPollTimer !== null) {
+      clearInterval(state.localPollTimer);
+      state.localPollTimer = null;
+    }
+  };
+  startTimer();
+
+  window.addEventListener("beforeunload", stopTimer);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      stopTimer();
+    } else {
+      poll();
+      startTimer();
+    }
+  });
+
   return true;
 }
 
@@ -154,6 +188,24 @@ async function init() {
 
   if (!localPolling && (params.get("demo") === "1" || !window.Twitch?.ext?.listen)) {
     await loadDemoSnapshot();
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !refs.tooltip.hidden) {
+      refs.tooltip.hidden = true;
+      refs.tooltip.innerHTML = "";
+    }
+  });
+  document.addEventListener("click", (e) => {
+    if (refs.tooltip.hidden) return;
+    if (!refs.tooltip.contains(e.target) && !e.target.closest(".item")) {
+      refs.tooltip.hidden = true;
+      refs.tooltip.innerHTML = "";
+    }
+  });
+
+  if (!localPolling && state.latestEnvelope === null) {
+    setStatus("Open with ?demo=1 to see sample data, or ?ebs=<url>&channel=<id> to poll your local EBS.");
   }
 }
 

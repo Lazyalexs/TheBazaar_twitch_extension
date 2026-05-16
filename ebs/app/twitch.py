@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -9,6 +10,8 @@ import httpx
 from .config import Settings
 from .protocol import compact_json
 from .security import sign_twitch_ebs_jwt
+
+logger = logging.getLogger("ebs.twitch")
 
 
 @dataclass(frozen=True)
@@ -73,4 +76,8 @@ class TwitchPubSubClient:
             )
             return PubSubSendResult(response.status_code, response.text)
         except httpx.RequestError as exc:
+            logger.error(
+                "twitch_request_error",
+                extra={"channel_id": channel_id, "error": str(exc)},
+            )
             return PubSubSendResult(status_code=599, body=str(exc))

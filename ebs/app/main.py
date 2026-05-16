@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import logging
 import time
 from contextlib import asynccontextmanager
 from typing import Any
@@ -9,6 +10,7 @@ from fastapi import FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import Settings, load_settings
+from .logging_setup import configure_logging
 from .protocol import PubSubEnvelope, compact_size_bytes
 from .rate_limit import InMemoryRateLimiter
 from .security import JwtError, extract_bearer_token, require_role, verify_hs256_jwt
@@ -16,9 +18,13 @@ from .twitch import TwitchPubSubClient
 
 
 settings: Settings = load_settings()
+configure_logging(settings.env)
+logger = logging.getLogger("ebs")
+
 rate_limiter = InMemoryRateLimiter(settings.min_send_interval_seconds)
 twitch_client = TwitchPubSubClient(settings)
 latest_by_channel: dict[str, dict[str, Any]] = {}
+last_seen_by_channel: dict[str, tuple[str, int]] = {}
 
 
 @asynccontextmanager
@@ -57,11 +63,27 @@ def _require_companion_auth(
     provided = extract_bearer_token(authorization) or x_bazaar_companion_token
     expected = _expected_companion_token(channel_id)
     if not expected:
+        logger.warning(
+            "auth_failed_companion",
+            extra={
+                "channel_id": channel_id,
+                "has_authorization": bool(provided),
+                "reason": "channel_not_configured",
+            },
+        )
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "channel_not_configured"},
         )
     if not provided or not hmac.compare_digest(provided, expected):
+        logger.warning(
+            "auth_failed_companion",
+            extra={
+                "channel_id": channel_id,
+                "has_authorization": bool(provided),
+                "reason": "invalid_token",
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "invalid_companion_token"},
@@ -96,12 +118,22 @@ def _authenticate_channel_reader(
         return
 
     if not authorization and not x_bazaar_companion_token:
+        logger.warning(
+            "auth_failed_reader",
+            extra={"channel_id": channel_id, "reason": "missing_auth"},
+        )
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"error": "missing_auth"})
+    logger.warning(
+        "auth_failed_reader",
+        extra={"channel_id": channel_id, "reason": "invalid_auth"},
+    )
     raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"error": "invalid_auth"})
 
 
 @app.get("/health")
 def health() -> dict[str, Any]:
+    if settings.env == "production":
+        return {"ok": True}
     return {
         "ok": True,
         "env": settings.env,
@@ -133,6 +165,14 @@ async def ingest_companion_snapshot(
     message = envelope.model_dump(exclude_none=True)
     size_bytes = compact_size_bytes(message)
     if size_bytes > settings.max_payload_bytes:
+        logger.warning(
+            "payload_too_large",
+            extra={
+                "channel_id": channel_id,
+                "size_bytes": size_bytes,
+                "max_payload_bytes": settings.max_payload_bytes,
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail={
@@ -142,8 +182,36 @@ async def ingest_companion_snapshot(
             },
         )
 
+    run_id = envelope.runId
+    seq = envelope.seq
+    last_entry = last_seen_by_channel.get(channel_id)
+    if last_entry is not None:
+        last_run_id, last_seq = last_entry
+        if last_run_id == run_id and seq <= last_seq:
+            logger.warning(
+                "dedup_hit",
+                extra={
+                    "channel_id": channel_id,
+                    "run_id": run_id,
+                    "seq": seq,
+                },
+            )
+            return {
+                "ok": True,
+                "dedup": True,
+                "channelId": channel_id,
+                "seq": seq,
+            }
+
     allowed, retry_after = rate_limiter.allow(channel_id)
     if not allowed:
+        logger.warning(
+            "rate_limited",
+            extra={
+                "channel_id": channel_id,
+                "retry_after_seconds": round(retry_after, 3),
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={
@@ -159,6 +227,7 @@ async def ingest_companion_snapshot(
         "message": message,
     }
 
+    last_seen_by_channel[channel_id] = (run_id, seq)
     if settings.dry_run or not settings.twitch_configured:
         return {
             "ok": True,
@@ -171,6 +240,13 @@ async def ingest_companion_snapshot(
 
     result = await twitch_client.send_broadcast(channel_id=channel_id, message=message)
     if result.status_code >= 400:
+        extra_ctx: dict[str, Any] = {
+            "channel_id": channel_id,
+            "status_code": result.status_code,
+        }
+        if result.status_code < 500:
+            extra_ctx["body"] = result.body
+        logger.warning("twitch_pubsub_failed", extra=extra_ctx)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail={
@@ -180,6 +256,15 @@ async def ingest_companion_snapshot(
             },
         )
 
+    logger.info(
+        "snapshot_ingested",
+        extra={
+            "channel_id": channel_id,
+            "seq": seq,
+            "size_bytes": size_bytes,
+            "sent_to_twitch": True,
+        },
+    )
     return {
         "ok": True,
         "dryRun": False,
@@ -232,6 +317,10 @@ def extension_setup(
     try:
         payload = verify_hs256_jwt(token, settings.twitch_secret_base64)
     except JwtError as exc:
+        logger.warning(
+            "jwt_invalid_setup",
+            extra={"reason": str(exc)},
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "invalid_twitch_jwt", "detail": str(exc)},
@@ -239,11 +328,15 @@ def extension_setup(
 
     try:
         require_role(payload, {"broadcaster", "moderator"})
-    except JwtError as exc:
+    except JwtError:
+        logger.warning(
+            "forbidden_role",
+            extra={"role": payload.get("role")},
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"error": "forbidden_role"},
-        ) from exc
+        ) from None
 
     return {
         "ok": True,

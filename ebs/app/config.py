@@ -55,9 +55,12 @@ def _as_int(value: str | None, default: int) -> int:
 def _load_json_dict(value: str | None) -> dict[str, Any]:
     if not value:
         return {}
-    loaded = json.loads(value)
+    try:
+        loaded = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"COMPANION_TOKENS_JSON is not valid JSON: {exc}") from exc
     if not isinstance(loaded, dict):
-        raise ValueError("Expected JSON object")
+        raise ValueError("COMPANION_TOKENS_JSON must be a JSON object")
     return loaded
 
 
@@ -109,6 +112,14 @@ def load_settings() -> Settings:
 
     if default_channel and default_token:
         companion_tokens.setdefault(default_channel, default_token)
+
+    if is_production:
+        for channel_id, token in companion_tokens.items():
+            if len(token) < 32:
+                raise RuntimeError(
+                    f'Companion token for channel "{channel_id}" is too short: '
+                    f"minimum 32 chars"
+                )
 
     if is_production:
         cors_origins_raw = os.environ.get("EBS_CORS_ORIGINS")
