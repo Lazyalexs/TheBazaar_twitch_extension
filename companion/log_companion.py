@@ -1,5 +1,19 @@
 from __future__ import annotations
 
+import tempfile as _tempfile
+from pathlib import Path as _Path
+from datetime import datetime as _datetime
+
+_COMPANION_LOG_PATH = _Path(_tempfile.gettempdir()) / "thebazaar_vision_debug.log"
+
+def _companion_log(msg: str) -> None:
+    line = f"{_datetime.now().strftime('%H:%M:%S')} [log_comp] {msg}\n"
+    try:
+        with open(_COMPANION_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(line)
+    except Exception:
+        pass
+
 import argparse
 import json
 import os
@@ -350,8 +364,12 @@ class BazaarLogState:
         if self.visual_resolver is None:
             return None
         try:
-            return self.visual_resolver.match(slot, instance_id, size, bbox)
-        except Exception:
+            result = self.visual_resolver.match(slot, instance_id, size, bbox)
+            if result is None:
+                _companion_log(f"visual_match slot={slot} id={instance_id}: NO MATCH")
+            return result
+        except Exception as e:
+            _companion_log(f"visual_match slot={slot} ERROR: {e}")
             return None
 
 
