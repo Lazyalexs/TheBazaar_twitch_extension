@@ -16,6 +16,20 @@ from tkinter import filedialog, messagebox, ttk
 from types import SimpleNamespace
 from typing import Any
 
+import tempfile
+from pathlib import Path as _Path
+
+_DIAG_LOG_PATH = _Path(tempfile.gettempdir()) / "thebazaar_vision_debug.log"
+
+def _diag_log(msg: str) -> None:
+    from datetime import datetime
+    line = f"{datetime.now().strftime('%H:%M:%S')} [companion] {msg}\n"
+    try:
+        with open(_DIAG_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(line)
+    except Exception:
+        pass
+
 from companion.log_companion import (
     build_calibration,
     build_snapshot,
@@ -264,12 +278,15 @@ def calibration_summary(calibration: Any) -> str:
 
 def create_visual_resolver(enabled: bool) -> Any | None:
     if not enabled:
+        _diag_log("visual resolver DISABLED")
         return None
     try:
         from companion.vision_matcher import VisualCardResolver
-    except ImportError:
+        _diag_log("visual resolver CREATED")
+        return VisualCardResolver()
+    except ImportError as e:
+        _diag_log(f"visual resolver IMPORT FAILED: {e}")
         return None
-    return VisualCardResolver()
 
 
 class PublisherThread(threading.Thread):

@@ -16,6 +16,22 @@ from typing import Any
 from PIL import Image, ImageGrab, ImageOps
 
 
+_VISION_LOG_PATH = None
+
+
+def _vision_log(msg: str) -> None:
+    global _VISION_LOG_PATH
+    if _VISION_LOG_PATH is None:
+        import tempfile
+        _VISION_LOG_PATH = Path(tempfile.gettempdir()) / "thebazaar_vision_debug.log"
+    line = f"{__import__('time').strftime('%H:%M:%S')} {msg}\n"
+    try:
+        with open(_VISION_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(line)
+    except Exception:
+        pass
+
+
 IMAGE_SIZE = (32, 32)
 DOWNLOAD_WORKERS = 8
 USER_AGENT = "TheBazaarLiveBoardCompanion/visual-fallback"
@@ -240,7 +256,7 @@ class VisualCardResolver:
         self,
         items_data_path: Path | None = None,
         cache_dir: Path | None = None,
-        threshold: float = 0.24,
+        threshold: float = 0.40,
         ambiguity_margin: float = 0.035,
     ) -> None:
         self.items_data_path = items_data_path or default_items_data_path()
@@ -269,6 +285,10 @@ class VisualCardResolver:
 
         if self._screen is None:
             self._screen = capture_game_window()
+            if self._screen is None:
+                _vision_log("ERROR: capture_game_window returned None - game window not found")
+            else:
+                _vision_log(f"captured screen {self._screen.size}")
         if self._screen is None:
             return None
 
@@ -305,11 +325,15 @@ class VisualCardResolver:
                 second_ref = ref
 
         if best_ref is None or best_score > self.threshold:
+            _vision_log(f"slot={slot} NO MATCH: best={best_ref.title if best_ref else 'None'} score={best_score:.4f} threshold={self.threshold}")
             return None
 
         margin = second_score - best_score
         if second_ref is not None and margin < self.ambiguity_margin:
+            _vision_log(f"slot={slot} AMBIGUOUS: {best_ref.title} vs {second_ref.title} margin={margin:.4f}")
             return None
+
+        _vision_log(f"slot={slot} MATCH: {best_ref.title} tier={best_ref.tier} score={best_score:.4f} margin={margin:.4f}")
 
         match = VisualMatch(
             title=best_ref.title,
