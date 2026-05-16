@@ -10,15 +10,27 @@ MessageType = Literal["snapshot", "diff", "heartbeat", "reset", "error"]
 Phase = Literal["menu", "shopping", "combat", "event", "game_over", "unknown"]
 
 
+class NormalizedBox(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    w: float = Field(gt=0, le=1)
+    h: float = Field(gt=0, le=1)
+
+
 class BoardItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     slot: int = Field(ge=0, le=15)
     id: str = Field(min_length=1, max_length=80)
+    source: Literal["manual", "confirmed", "vision", "game"] = "manual"
+    confidence: float | None = Field(default=None, ge=0, le=1)
     tier: str | None = Field(default=None, max_length=32)
     enchants: list[str] = Field(default_factory=list, max_length=8)
     cd: float | None = Field(default=None, ge=0)
     ammo: int | None = Field(default=None, ge=0)
+    bbox: NormalizedBox | None = None
 
 
 class StashItem(BaseModel):
@@ -39,12 +51,14 @@ class SnapshotPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     hero: str | None = Field(default=None, max_length=64)
+    debugHotspots: bool = False
     day: int | None = Field(default=None, ge=0, le=99)
     gold: int | None = Field(default=None, ge=0, le=999)
     health: int | None = Field(default=None, ge=0, le=999)
     maxHealth: int | None = Field(default=None, ge=0, le=999)
     phase: Phase = "unknown"
     board: list[BoardItem] = Field(default_factory=list, max_length=20)
+    opponentBoard: list[BoardItem] = Field(default_factory=list, max_length=20)
     stash: list[StashItem] = Field(default_factory=list, max_length=30)
     skills: list[SkillItem] = Field(default_factory=list, max_length=20)
 
@@ -118,4 +132,3 @@ def compact_json(data: Any) -> str:
 
 def compact_size_bytes(data: Any) -> int:
     return len(compact_json(data).encode("utf-8"))
-

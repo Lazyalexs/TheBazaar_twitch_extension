@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#071014" />
+    <title>The Bazaar Companion</title>
+    <link rel="manifest" href="./companion.webmanifest" />
+    <link rel="stylesheet" href="./assets/app.css" />
+  </head>
+  <body class="dashboard companion-page">
+    <main class="companion-shell">
+      <section class="companion-toolbar">
+        <div>
+          <p class="eyebrow">Companion</p>
+          <h1>The Bazaar Live Board</h1>
+        </div>
+        <div class="companion-actions">
+          <button id="installApp" class="secondary" type="button" hidden>Install App</button>
+          <button id="captureScreen" type="button">Capture</button>
+          <button id="saveLayout" class="secondary" type="button">Save Layout</button>
+          <button id="clearLayout" class="danger" type="button">Clear</button>
+          <button id="publishNow" type="button">Publish</button>
+          <label class="toggle-row">
+            <input id="autoPublish" type="checkbox" />
+            Auto
+          </label>
+        </div>
+      </section>
+
+      <section class="companion-grid">
+        <aside class="companion-panel">
+          <label>
+            EBS URL
+            <input id="ebsUrl" />
+          </label>
+          <label>
+            Channel ID
+            <input id="channelId" />
+          </label>
+          <label>
+            Companion Token
+            <input id="token" type="password" autocomplete="off" />
+          </label>
+
+          <div class="companion-fields">
+            <label>
+              Hero
+              <input id="hero" value="vanessa" />
+            </label>
+            <label>
+              Phase
+              <select id="phase">
+                <option value="combat">Combat</option>
+                <option value="shopping">Shopping</option>
+                <option value="event">Event</option>
+                <option value="menu">Menu</option>
+                <option value="unknown">Unknown</option>
+              </select>
+            </label>
+            <label>
+              Day
+              <input id="day" type="number" min="0" max="99" value="7" />
+            </label>
+            <label>
+              Gold
+              <input id="gold" type="number" min="0" max="999" value="0" />
+            </label>
+            <label>
+              Health
+              <input id="health" type="number" min="0" max="999" value="100" />
+            </label>
+            <label>
+              Max
+              <input id="maxHealth" type="number" min="1" max="999" value="100" />
+            </label>
+          </div>
+
+          <label>
+            Item Search
+            <input id="itemSearch" placeholder="Dishwasher, Cutlass..." />
+          </label>
+          <section class="search-results" id="searchResults"></section>
+          <button id="addSelected" type="button">Add Selected</button>
+          <button id="assignSelected" class="secondary" type="button">Assign Selected</button>
+
+          <section class="board-editor" id="boardEditor"></section>
+          <section class="diagnostics companion-status" id="status">Ready.</section>
+        </aside>
+
+        <section class="capture-stage-wrap">
+          <div class="capture-stage" id="stage">
+            <video id="captureVideo" autoplay muted playsinline></video>
+            <div class="capture-empty" id="captureEmpty">No capture</div>
+            <div class="companion-hotspots" id="hotspots"></div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./src/companion.js"></script>
+  </body>
+</html>

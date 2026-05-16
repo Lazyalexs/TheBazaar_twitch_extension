@@ -10,6 +10,13 @@ const state = {
   channelId: null,
 };
 
+function defaultEbsUrl() {
+  if (window.location.protocol === "https:") {
+    return window.location.origin;
+  }
+  return "http://127.0.0.1:8000";
+}
+
 function write(value) {
   refs.diagnostics.textContent =
     typeof value === "string" ? value : JSON.stringify(value, null, 2);
@@ -36,7 +43,7 @@ async function checkHealth() {
   write({ health: healthJson, latest });
 }
 
-refs.ebsUrl.value = localStorage.getItem("bazaar.ebsUrl") ?? refs.ebsUrl.value;
+refs.ebsUrl.value = localStorage.getItem("bazaar.ebsUrl") ?? defaultEbsUrl();
 refs.channelId.value =
   localStorage.getItem("bazaar.channelId") ?? refs.channelId.value;
 refs.checkHealth.addEventListener("click", () => {

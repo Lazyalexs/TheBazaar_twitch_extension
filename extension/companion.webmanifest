@@ -1,0 +1,18 @@
+{
+  "name": "The Bazaar Live Board Companion",
+  "short_name": "Bazaar Companion",
+  "description": "Streamer companion for The Bazaar Twitch hover tooltips.",
+  "start_url": "./companion.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#071014",
+  "theme_color": "#071014",
+  "icons": [
+    {
+      "src": "./assets/companion-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

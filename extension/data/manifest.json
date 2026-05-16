@@ -1,10 +1,9 @@
 {
-  "schema": 1,
-  "patch": "13.3-dev",
-  "generatedAt": "2026-04-29T00:00:00Z",
-  "source": "prototype",
-  "files": {
-    "items": "items.min.json"
-  }
+  "source": "BazaarDB",
+  "sourceHost": "https://sin.bazaardb.gg",
+  "canonicalHost": "https://bazaardb.gg",
+  "category": "items",
+  "latestVersion": "14.1",
+  "total": 1080,
+  "syncedAt": "2026-05-13T04:30:01.516Z"
 }
-

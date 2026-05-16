@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 import urllib.error
 import urllib.request
@@ -29,22 +30,24 @@ def build_snapshot(seq: int, run_id: str) -> dict[str, Any]:
             "board": [
                 {
                     "slot": 0,
-                    "id": "crow_s_nest",
+                    "id": "dishwasher",
                     "tier": "gold",
                     "enchants": [],
                     "cd": cooldown,
                     "ammo": None,
+                    "bbox": {"x": 0.315, "y": 0.52, "w": 0.112, "h": 0.2},
                 },
                 {
                     "slot": 1,
-                    "id": "small_cutlass",
+                    "id": "cutlass",
                     "tier": "silver",
                     "enchants": ["burn"],
                     "cd": 4.5,
                     "ammo": None,
+                    "bbox": {"x": 0.43, "y": 0.52, "w": 0.105, "h": 0.2},
                 },
             ],
-            "stash": [{"id": "spare_rigging", "tier": "bronze"}],
+            "stash": [{"id": "crow_s_nest", "tier": "silver"}],
             "skills": [{"id": "sea_legs", "tier": "bronze"}],
         },
     }
@@ -74,9 +77,12 @@ def post_snapshot(base_url: str, channel_id: str, token: str, snapshot: dict[str
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--url", default="http://127.0.0.1:8000")
-    parser.add_argument("--channel", default="dev-channel")
-    parser.add_argument("--token", default="dev-companion-token")
+    parser.add_argument("--url", default=os.environ.get("EBS_PUBLIC_URL", "http://127.0.0.1:8000"))
+    parser.add_argument("--channel", default=os.environ.get("COMPANION_CHANNEL_ID", "dev-channel"))
+    parser.add_argument(
+        "--token",
+        default=os.environ.get("COMPANION_SHARED_TOKEN", "dev-companion-token"),
+    )
     parser.add_argument("--interval", type=float, default=1.1)
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()

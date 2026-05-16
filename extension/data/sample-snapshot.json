@@ -15,28 +15,43 @@
     "board": [
       {
         "slot": 0,
-        "id": "crow_s_nest",
+        "id": "dishwasher",
+        "source": "manual",
+        "confidence": 1,
         "tier": "gold",
         "enchants": [],
         "cd": 3.2,
-        "ammo": null
+        "ammo": null,
+        "bbox": {
+          "x": 0.315,
+          "y": 0.52,
+          "w": 0.112,
+          "h": 0.2
+        }
       },
       {
         "slot": 1,
-        "id": "small_cutlass",
+        "id": "cutlass",
+        "source": "manual",
+        "confidence": 1,
         "tier": "silver",
         "enchants": ["burn"],
         "cd": 4.5,
-        "ammo": null
+        "ammo": null,
+        "bbox": {
+          "x": 0.43,
+          "y": 0.52,
+          "w": 0.105,
+          "h": 0.2
+        }
       }
     ],
     "stash": [
       {
-        "id": "spare_rigging",
-        "tier": "bronze"
+        "id": "crow_s_nest",
+        "tier": "silver"
       }
     ],
     "skills": []
   }
 }
-
