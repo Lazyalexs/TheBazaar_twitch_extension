@@ -6,7 +6,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-MessageType = Literal["snapshot", "diff", "heartbeat", "reset", "error"]
+MessageType = Literal["snapshot", "heartbeat", "reset", "error"]
 Phase = Literal["menu", "shopping", "combat", "event", "game_over", "unknown"]
 
 
@@ -63,18 +63,6 @@ class SnapshotPayload(BaseModel):
     skills: list[SkillItem] = Field(default_factory=list, max_length=20)
 
 
-class DiffOperation(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    op: Literal["add", "replace", "remove"]
-    path: str = Field(min_length=1, max_length=160)
-    value: Any | None = None
-
-
-class DiffPayload(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    changes: list[DiffOperation] = Field(default_factory=list, max_length=80)
 
 
 class HeartbeatPayload(BaseModel):
@@ -113,8 +101,6 @@ class PubSubEnvelope(BaseModel):
             return SnapshotPayload.model_validate(payload).model_dump(
                 exclude_none=True
             )
-        if message_type == "diff":
-            return DiffPayload.model_validate(payload).model_dump(exclude_none=True)
         if message_type == "heartbeat":
             return HeartbeatPayload.model_validate(payload).model_dump(
                 exclude_none=True
