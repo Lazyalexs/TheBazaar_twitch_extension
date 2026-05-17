@@ -463,8 +463,8 @@ class CompanionApp(tk.Tk):
                 self.iconbitmap(default=str(icon_path))
         except Exception:
             pass  # icon is cosmetic; ignore failures
-        self.geometry("1100x800")
-        self.minsize(1000, 720)
+        self.geometry("1150x880")
+        self.minsize(1050, 760)
 
         self.status_queue: queue.Queue[PublishStatus] = queue.Queue()
         self.stop_event: threading.Event | None = None
@@ -575,10 +575,10 @@ class CompanionApp(tk.Tk):
         )
         language_combo.pack(side="left", padx=(0, 12))
         language_combo.bind("<<ComboboxSelected>>", self._on_language_change)
-        self._register_translation(ttk.Button(actions, text=self.t("save"), command=self._save_settings), "save").pack(side="right")
-        self._register_translation(ttk.Button(actions, text=self.t("start"), command=self._start), "start").pack(side="right", padx=(8, 0))
-        self._register_translation(ttk.Button(actions, text=self.t("stop"), command=self._stop), "stop").pack(side="right", padx=(8, 0))
         self._register_translation(ttk.Button(actions, text=self.t("test_once"), command=self._test_once), "test_once").pack(side="right", padx=(8, 0))
+        self._register_translation(ttk.Button(actions, text=self.t("stop"), command=self._stop), "stop").pack(side="right", padx=(8, 0))
+        self._register_translation(ttk.Button(actions, text=self.t("start"), command=self._start), "start").pack(side="right", padx=(8, 0))
+        self._register_translation(ttk.Button(actions, text=self.t("save"), command=self._save_settings), "save").pack(side="right", padx=(8, 0))
 
         settings = self._register_translation(ttk.LabelFrame(root, text=self.t("connection")), "connection")
         settings.grid(row=1, column=0, sticky="nsew", padx=(0, 8), pady=(0, 12))
@@ -632,7 +632,7 @@ class CompanionApp(tk.Tk):
         diagnostics.columnconfigure(0, weight=1)
         self.log_box = tk.Text(
             diagnostics,
-            height=16,
+            height=8,
             bg="#0b151a",
             fg="#f6f1e8",
             insertbackground="#f6f1e8",
@@ -680,21 +680,9 @@ class CompanionApp(tk.Tk):
 
         actions = ttk.Frame(container)
         actions.grid(row=1, column=0, sticky="ew", pady=(8, 0))
-        actions.columnconfigure(0, weight=1)
-        actions.columnconfigure(1, weight=1)
-        actions.columnconfigure(2, weight=1)
-        self._register_translation(
-            ttk.Button(actions, text=self.t("paste"), command=self._paste_token),
-            "paste",
-        ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
-        self._register_translation(
-            ttk.Button(actions, text=self.t("verify"), command=self._verify_auth),
-            "verify",
-        ).grid(row=0, column=1, sticky="ew", padx=4)
-        self._register_translation(
-            ttk.Button(actions, text=self.t("register"), command=self._open_registration),
-            "register",
-        ).grid(row=0, column=2, sticky="ew", padx=(4, 0))
+        self._register_translation(ttk.Button(actions, text=self.t("paste"), command=self._paste_token), "paste").pack(side="left", padx=(0, 6))
+        self._register_translation(ttk.Button(actions, text=self.t("verify"), command=self._verify_auth), "verify").pack(side="left", padx=(0, 6))
+        self._register_translation(ttk.Button(actions, text=self.t("register"), command=self._open_registration), "register").pack(side="left", padx=(0, 6))
 
     def _attach_entry_helpers(self, entry: ttk.Entry) -> None:
         def edit(action: str) -> str:
@@ -817,7 +805,7 @@ class CompanionApp(tk.Tk):
 
     def _calibration_panel_inline(self, parent: ttk.Widget) -> None:
         panel = parent
-        for column in range(3):
+        for column in range(5):
             panel.columnconfigure(column, weight=1)
 
         fields = [
@@ -835,24 +823,25 @@ class CompanionApp(tk.Tk):
         for index, (label, variable) in enumerate(fields):
             self._calibration_field(
                 panel,
-                row=index // 3,
-                column=index % 3,
+                row=index // 5,
+                column=index % 5,
                 label=label,
                 variable=variable,
             )
 
         actions = ttk.Frame(panel)
-        actions.grid(row=4, column=0, columnspan=3, sticky="ew", padx=8, pady=(8, 4))
+        actions.grid(row=2, column=0, columnspan=5, sticky="ew", padx=8, pady=(8, 4))
         ttk.Button(actions, text="720p", command=self._set_720p_calibration).pack(side="left")
         ttk.Button(actions, text="1080p", command=self._set_1080p_calibration).pack(side="left", padx=6)
         self._register_translation(ttk.Button(actions, text=self.t("clear"), command=self._clear_calibration), "clear").pack(side="left")
 
-        self._register_translation(ttk.Label(
+        self._register_translation(
+            ttk.Label(
             panel,
             text=self.t("calibration_hint"),
-            wraplength=420,
+            wraplength=900,
             style="Muted.TLabel",
-        ), "calibration_hint").grid(row=5, column=0, columnspan=3, sticky="ew", padx=8, pady=(0, 8))
+        ), "calibration_hint").grid(row=3, column=0, columnspan=5, sticky="ew", padx=8, pady=(0, 8))
 
     def _calibration_field(
         self,
@@ -863,7 +852,7 @@ class CompanionApp(tk.Tk):
         variable: tk.StringVar,
     ) -> None:
         cell = ttk.Frame(parent)
-        cell.grid(row=row, column=column, sticky="ew", padx=6, pady=4)
+        cell.grid(row=row, column=column, sticky="ew", padx=6, pady=2)
         cell.columnconfigure(0, weight=1)
         ttk.Label(cell, text=label, style="Muted.TLabel").grid(row=0, column=0, sticky="w")
         entry = ttk.Entry(cell, textvariable=variable, width=9)
