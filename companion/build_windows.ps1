@@ -22,6 +22,27 @@ try {
     companion\desktop_app.py
 
   Write-Host "Built dist\TheBazaarLiveBoardCompanion\TheBazaarLiveBoardCompanion.exe"
+
+  $iscc = $null
+  foreach ($candidate in @(
+      'C:\Program Files (x86)\Inno Setup 6\ISCC.exe',
+      'C:\Program Files\Inno Setup 6\ISCC.exe',
+      "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
+  )) {
+    if (Test-Path $candidate) { $iscc = $candidate; break }
+  }
+  if (-not $iscc) {
+    $isccCmd = Get-Command iscc.exe -ErrorAction SilentlyContinue
+    if ($isccCmd) { $iscc = $isccCmd.Source }
+  }
+  if ($iscc) {
+    Write-Host "Found Inno Setup at $iscc, building installer..."
+    & $iscc 'companion\installer.iss'
+    Write-Host "Installer in dist\TheBazaarLiveBoardCompanion-<version>-setup.exe"
+  } else {
+    Write-Host "Inno Setup not found - skipping installer build."
+    Write-Host "Install via 'winget install JRSoftware.InnoSetup' and re-run this script."
+  }
 }
 finally {
   Pop-Location
