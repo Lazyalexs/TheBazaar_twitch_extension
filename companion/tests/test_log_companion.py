@@ -115,15 +115,16 @@ def test_log_state_publishes_opponent_board_from_spawned_hand():
 
     payload = state.payload("5.0.0")
 
-    assert payload["board"][0]["id"] == "unknown:opp_a"
-    assert payload["board"][0]["slot"] == 2
-    assert payload["board"][0]["bbox"] == socket_box(
+    assert payload["board"] == []
+    assert payload["opponentBoard"][0]["id"] == "unknown:opp_a"
+    assert payload["opponentBoard"][0]["slot"] == 2
+    assert payload["opponentBoard"][0]["bbox"] == socket_box(
         2,
         "Small",
         state.calibration,
         opponent=True,
     )
-    assert payload["board"][1]["slot"] == 4
+    assert payload["opponentBoard"][1]["slot"] == 4
 
 
 def test_log_state_can_resolve_unknown_items_with_visual_fallback():

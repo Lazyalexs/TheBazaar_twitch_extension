@@ -299,7 +299,8 @@ class BazaarLogState:
             "patch": patch,
             "hero": None,
             "phase": self.phase,
-            "board": [*opponent_items, *board_items],
+            "board": board_items,
+            "opponentBoard": opponent_items,
             "stash": [],
             "skills": [],
         }
