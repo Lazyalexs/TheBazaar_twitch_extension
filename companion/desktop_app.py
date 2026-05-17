@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import queue
+import sys
 import threading
 import time
 import tkinter as tk
@@ -167,6 +168,20 @@ TEXT = {
     },
 }
 
+THEME = {
+    "bg":          "#071014",
+    "bg_card":     "#0c171d",
+    "bg_panel":    "#0d171d",
+    "fg":          "#f6f1e8",
+    "fg_muted":    "#b9afa0",
+    "accent":      "#2fdbc3",
+    "dot_ok":      "#4ade80",
+    "dot_warn":    "#fbbf24",
+    "dot_error":   "#f87171",
+    "dot_idle":    "#64748b",
+    "dot_active":  "#38bdf8",
+}
+
 
 @dataclass(frozen=True)
 class AppConfig:
@@ -288,6 +303,37 @@ def create_visual_resolver(enabled: bool) -> Any | None:
         return None
 
 
+def _resource_path(rel: str) -> Path:
+    """Locate a packaged resource both in dev (repo root) and in a PyInstaller bundle."""
+    bundle = getattr(sys, "_MEIPASS", None)
+    if bundle:
+        return Path(bundle) / rel
+    return Path(__file__).resolve().parents[1] / rel
+
+
+class StatusIndicator(ttk.Frame):
+    """Coloured dot + text label, side-by-side."""
+
+    def __init__(self, parent, textvariable: tk.StringVar, **kwargs):
+        super().__init__(parent, **kwargs)
+        self._canvas = tk.Canvas(
+            self,
+            width=14, height=14,
+            bg=THEME["bg_panel"], highlightthickness=0,
+        )
+        self._canvas.pack(side="left", padx=(0, 8), pady=2)
+        self._dot = self._canvas.create_oval(
+            3, 3, 11, 11, fill=THEME["dot_idle"], outline="",
+        )
+        ttk.Label(self, textvariable=textvariable, wraplength=330).pack(
+            side="left", fill="x", expand=True,
+        )
+
+    def set_state(self, state: str) -> None:
+        colour = THEME.get(f"dot_{state}", THEME["dot_idle"])
+        self._canvas.itemconfigure(self._dot, fill=colour)
+
+
 class PublisherThread(threading.Thread):
     def __init__(
         self,
@@ -407,9 +453,18 @@ class CompanionApp(tk.Tk):
         # (key, widget, attribute) — updated on language change
         self._translated: list[tuple[str, tk.Widget, str]] = []
 
+        self.server_indicator: StatusIndicator | None = None
+        self.game_indicator: StatusIndicator | None = None
+
         self.title(f"{self.t('window_title')} {APP_VERSION}")
-        self.geometry("980x720")
-        self.minsize(900, 640)
+        try:
+            icon_path = _resource_path("extension/image/favicon.ico")
+            if icon_path.exists():
+                self.iconbitmap(default=str(icon_path))
+        except Exception:
+            pass  # icon is cosmetic; ignore failures
+        self.geometry("1100x800")
+        self.minsize(1000, 720)
 
         self.status_queue: queue.Queue[PublishStatus] = queue.Queue()
         self.stop_event: threading.Event | None = None
@@ -456,30 +511,57 @@ class CompanionApp(tk.Tk):
         return widget
 
     def _configure_style(self) -> None:
-        self.configure(bg="#071014")
+        self.configure(bg=THEME["bg"])
         style = ttk.Style(self)
         style.theme_use("clam")
-        style.configure(".", background="#071014", foreground="#f6f1e8", fieldbackground="#0c171d")
-        style.configure("TLabel", background="#071014", foreground="#f6f1e8")
-        style.configure("Muted.TLabel", foreground="#b9afa0")
+        style.configure(".", background=THEME["bg"], foreground=THEME["fg"], fieldbackground=THEME["bg_card"])
+        style.configure("TLabel", background=THEME["bg"], foreground=THEME["fg"])
+        style.configure("Muted.TLabel", foreground=THEME["fg_muted"])
         style.configure("Title.TLabel", font=("Segoe UI", 18, "bold"))
-        style.configure("Card.TFrame", background="#0d171d", relief="solid", borderwidth=1)
+        style.configure("Card.TFrame", background=THEME["bg_panel"], relief="solid", borderwidth=1)
         style.configure("TButton", padding=(12, 8))
         style.configure("Danger.TButton", foreground="#fff4ed")
+        style.map(
+            "TCombobox",
+            fieldbackground=[("readonly", THEME["bg_card"])],
+            foreground=[("readonly", THEME["fg"])],
+            selectbackground=[("readonly", THEME["bg_card"])],
+            selectforeground=[("readonly", THEME["fg"])],
+            background=[("readonly", THEME["bg_card"])],
+        )
+        style.configure("TCombobox", arrowcolor=THEME["fg"])
+        self.option_add("*TCombobox*Listbox.background", THEME["bg_card"])
+        self.option_add("*TCombobox*Listbox.foreground", THEME["fg"])
+        self.option_add("*TCombobox*Listbox.selectBackground", THEME["accent"])
+        self.option_add("*TCombobox*Listbox.selectForeground", THEME["bg"])
 
     def _build_ui(self) -> None:
         root = ttk.Frame(self, padding=18)
         root.pack(fill="both", expand=True)
         root.columnconfigure(0, weight=1)
         root.columnconfigure(1, weight=1)
-        root.rowconfigure(2, weight=1)
+        root.rowconfigure(3, weight=1)
 
         header = ttk.Frame(root)
         header.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 14))
         header.columnconfigure(0, weight=1)
-        ttk.Label(header, text=f"The Bazaar Live Board {APP_VERSION}", style="Title.TLabel").grid(row=0, column=0, sticky="w")
+
+        title_row = ttk.Frame(header)
+        title_row.grid(row=0, column=0, sticky="ew")
+        title_row.columnconfigure(0, weight=1)
+        ttk.Label(
+            title_row,
+            text=f"The Bazaar Live Board {APP_VERSION}",
+            style="Title.TLabel",
+        ).grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            title_row,
+            textvariable=self.state_text,
+            style="Muted.TLabel",
+        ).grid(row=0, column=1, sticky="e", padx=(12, 0))
+
         actions = ttk.Frame(header)
-        actions.grid(row=0, column=1, sticky="e", padx=(12, 18))
+        actions.grid(row=1, column=0, sticky="ew", pady=(8, 0))
         self._register_translation(
             ttk.Label(actions, text=self.t("language")), "language"
         ).pack(side="left", padx=(0, 6))
@@ -493,15 +575,10 @@ class CompanionApp(tk.Tk):
         )
         language_combo.pack(side="left", padx=(0, 12))
         language_combo.bind("<<ComboboxSelected>>", self._on_language_change)
-        self._register_translation(ttk.Button(actions, text=self.t("save"), command=self._save_settings), "save").pack(side="left")
-        self._register_translation(ttk.Button(actions, text=self.t("start"), command=self._start), "start").pack(side="left", padx=(8, 0))
-        self._register_translation(ttk.Button(actions, text=self.t("stop"), command=self._stop), "stop").pack(side="left", padx=(8, 0))
-        self._register_translation(ttk.Button(actions, text=self.t("test_once"), command=self._test_once), "test_once").pack(side="left", padx=(8, 0))
-        ttk.Label(
-            header,
-            textvariable=self.state_text,
-            style="Muted.TLabel",
-        ).grid(row=0, column=2, sticky="e")
+        self._register_translation(ttk.Button(actions, text=self.t("save"), command=self._save_settings), "save").pack(side="right")
+        self._register_translation(ttk.Button(actions, text=self.t("start"), command=self._start), "start").pack(side="right", padx=(8, 0))
+        self._register_translation(ttk.Button(actions, text=self.t("stop"), command=self._stop), "stop").pack(side="right", padx=(8, 0))
+        self._register_translation(ttk.Button(actions, text=self.t("test_once"), command=self._test_once), "test_once").pack(side="right", padx=(8, 0))
 
         settings = self._register_translation(ttk.LabelFrame(root, text=self.t("connection")), "connection")
         settings.grid(row=1, column=0, sticky="nsew", padx=(0, 8), pady=(0, 12))
@@ -517,6 +594,11 @@ class CompanionApp(tk.Tk):
         ttk.Entry(game_row, textvariable=self.game_dir).grid(row=0, column=0, sticky="ew")
         self._register_translation(ttk.Button(game_row, text=self.t("browse"), command=self._browse_game_dir), "browse").grid(row=0, column=1, padx=(8, 0))
 
+        self._register_translation(
+            ttk.Label(settings, text=self.t("token_note"), wraplength=300, style="Muted.TLabel"),
+            "token_note",
+        ).grid(row=5, column=0, columnspan=2, sticky="ew", padx=10, pady=(12, 4))
+
         options = self._register_translation(ttk.LabelFrame(root, text=self.t("stream")), "stream")
         options.grid(row=1, column=1, sticky="nsew", padx=(8, 0), pady=(0, 12))
         options.columnconfigure(1, weight=1)
@@ -527,26 +609,25 @@ class CompanionApp(tk.Tk):
             text=self.t("visual_fallback"),
             variable=self.visual_fallback,
         ), "visual_fallback").grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(4, 0))
-        self._calibration_panel(options, 3)
 
-        self._register_translation(ttk.Label(
-            options,
-            text=self.t("token_note"),
-            wraplength=360,
-            style="Muted.TLabel",
-        ), "token_note").grid(row=4, column=0, columnspan=2, sticky="ew", padx=10, pady=(8, 4))
+        calibration_frame = self._register_translation(
+            ttk.LabelFrame(root, text=self.t("box_calibration")),
+            "box_calibration",
+        )
+        calibration_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(0, 12))
+        self._calibration_panel_inline(calibration_frame)
 
         live = self._register_translation(ttk.LabelFrame(root, text=self.t("live_status")), "live_status")
-        live.grid(row=2, column=0, sticky="nsew", padx=(0, 8))
+        live.grid(row=3, column=0, sticky="nsew", padx=(0, 8))
         live.columnconfigure(1, weight=1)
-        self._status_row(live, 0, "server", self.server_text)
-        self._status_row(live, 1, "game", self.game_text)
+        self.server_indicator = self._status_row(live, 0, "server", self.server_text, indicator=True)
+        self.game_indicator = self._status_row(live, 1, "game", self.game_text, indicator=True)
         self._status_row(live, 2, "phase", self.phase_text)
         self._status_row(live, 3, "board", self.board_text)
         self._status_row(live, 4, "stats", self.stats_text)
 
         diagnostics = ttk.LabelFrame(root, text=self.t("diagnostics"))
-        diagnostics.grid(row=2, column=1, sticky="nsew", padx=(8, 0))
+        diagnostics.grid(row=3, column=1, sticky="nsew", padx=(8, 0))
         diagnostics.rowconfigure(0, weight=1)
         diagnostics.columnconfigure(0, weight=1)
         self.log_box = tk.Text(
@@ -576,24 +657,44 @@ class CompanionApp(tk.Tk):
         self._attach_entry_helpers(entry)
         return entry
 
-    def _token_field(self, parent: ttk.Widget, row: int) -> None:
+    def _token_field(self, parent, row):
         self._register_translation(ttk.Label(parent, text=self.t("companion_token")), "companion_token").grid(row=row, column=0, sticky="w", padx=10, pady=6)
-        token_row = ttk.Frame(parent)
-        token_row.grid(row=row, column=1, sticky="ew", padx=10, pady=6)
-        token_row.columnconfigure(0, weight=1)
 
-        self.token_entry = ttk.Entry(token_row, textvariable=self.token, show="*")
+        container = ttk.Frame(parent)
+        container.grid(row=row, column=1, sticky="ew", padx=10, pady=6)
+        container.columnconfigure(0, weight=1)
+
+        inline = ttk.Frame(container)
+        inline.grid(row=0, column=0, sticky="ew")
+        inline.columnconfigure(0, weight=1)
+
+        self.token_entry = ttk.Entry(inline, textvariable=self.token, show="*")
         self.token_entry.grid(row=0, column=0, sticky="ew")
         self._attach_entry_helpers(self.token_entry)
-        self._register_translation(ttk.Button(token_row, text=self.t("paste"), command=self._paste_token), "paste").grid(row=0, column=1, padx=(8, 0))
         self._register_translation(ttk.Checkbutton(
-            token_row,
+            inline,
             text=self.t("show"),
             variable=self.show_token,
             command=self._toggle_token_visibility,
-        ), "show").grid(row=0, column=2, padx=(8, 0))
-        self._register_translation(ttk.Button(token_row, text=self.t("verify"), command=self._verify_auth), "verify").grid(row=1, column=0, sticky="ew", pady=(8, 0))
-        self._register_translation(ttk.Button(token_row, text=self.t("register"), command=self._open_registration), "register").grid(row=1, column=1, columnspan=2, sticky="ew", padx=(8, 0), pady=(8, 0))
+        ), "show").grid(row=0, column=1, padx=(8, 0))
+
+        actions = ttk.Frame(container)
+        actions.grid(row=1, column=0, sticky="ew", pady=(8, 0))
+        actions.columnconfigure(0, weight=1)
+        actions.columnconfigure(1, weight=1)
+        actions.columnconfigure(2, weight=1)
+        self._register_translation(
+            ttk.Button(actions, text=self.t("paste"), command=self._paste_token),
+            "paste",
+        ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        self._register_translation(
+            ttk.Button(actions, text=self.t("verify"), command=self._verify_auth),
+            "verify",
+        ).grid(row=0, column=1, sticky="ew", padx=4)
+        self._register_translation(
+            ttk.Button(actions, text=self.t("register"), command=self._open_registration),
+            "register",
+        ).grid(row=0, column=2, sticky="ew", padx=(4, 0))
 
     def _attach_entry_helpers(self, entry: ttk.Entry) -> None:
         def edit(action: str) -> str:
@@ -676,6 +777,8 @@ class CompanionApp(tk.Tk):
             with urllib.request.urlopen(request, timeout=10) as response:
                 result = json.loads(response.read().decode("utf-8"))
             self.server_text.set("OK")
+            if self.server_indicator:
+                self.server_indicator.set_state("ok")
             self._append_log(
                 f"{self.t('auth_ok')}: "
                 f"{result.get('channelLogin') or result.get('channelId', channel_id)}"
@@ -684,10 +787,14 @@ class CompanionApp(tk.Tk):
         except urllib.error.HTTPError as exc:
             details = exc.read().decode("utf-8", errors="replace")
             self.server_text.set(self.t("auth_failed"))
+            if self.server_indicator:
+                self.server_indicator.set_state("error")
             self._append_log(f"{self.t('auth_failed')}: HTTP {exc.code} {details}")
             messagebox.showerror(self.t("verify"), f"HTTP {exc.code}: {details}")
         except Exception as exc:
             self.server_text.set(self.t("auth_failed"))
+            if self.server_indicator:
+                self.server_indicator.set_state("error")
             self._append_log(f"{self.t('auth_failed')}: {exc}")
             messagebox.showerror(self.t("verify"), str(exc))
 
@@ -708,9 +815,8 @@ class CompanionApp(tk.Tk):
             pady=6,
         )
 
-    def _calibration_panel(self, parent: ttk.Widget, row: int) -> None:
-        panel = self._register_translation(ttk.LabelFrame(parent, text=self.t("box_calibration")), "box_calibration")
-        panel.grid(row=row, column=0, columnspan=2, sticky="ew", padx=10, pady=(10, 4))
+    def _calibration_panel_inline(self, parent: ttk.Widget) -> None:
+        panel = parent
         for column in range(3):
             panel.columnconfigure(column, weight=1)
 
@@ -764,43 +870,6 @@ class CompanionApp(tk.Tk):
         entry.grid(row=1, column=0, sticky="ew", pady=(2, 0))
         self._attach_entry_helpers(entry)
 
-    def _open_calibration(self) -> None:
-        window = tk.Toplevel(self)
-        window.title("Box Calibration")
-        window.configure(bg="#071014")
-        window.transient(self)
-        window.resizable(False, False)
-
-        frame = ttk.Frame(window, padding=14)
-        frame.grid(row=0, column=0, sticky="nsew")
-        frame.columnconfigure(1, weight=1)
-
-        fields = [
-            ("Left px", self.board_left_px, "1080p default 30; move all boxes right/left"),
-            ("Top px", self.board_top_px, "1080p default 556.5; move all boxes up/down"),
-            ("Opponent Top px", self.opponent_board_top_px, "1080p default 130; move opponent boxes up/down"),
-            ("Step px", self.socket_step_px, "1080p default 157.5; distance between sockets"),
-            ("Small W px", self.small_width_px, "1080p default 132"),
-            ("Medium W px", self.medium_width_px, "1080p default 216"),
-            ("Large W px", self.large_width_px, "1080p default 324"),
-            ("Height px", self.box_height_px, "1080p default 216"),
-            ("Pad X px", self.pad_x_px, "1080p default 9"),
-            ("Pad Y px", self.pad_y_px, "1080p default 4.5"),
-        ]
-        for row, (label, variable, hint) in enumerate(fields):
-            ttk.Label(frame, text=label).grid(row=row, column=0, sticky="w", padx=(0, 10), pady=4)
-            entry = ttk.Entry(frame, textvariable=variable, width=14)
-            entry.grid(row=row, column=1, sticky="ew", pady=4)
-            self._attach_entry_helpers(entry)
-            ttk.Label(frame, text=hint, style="Muted.TLabel").grid(row=row, column=2, sticky="w", padx=(10, 0), pady=4)
-
-        actions = ttk.Frame(frame)
-        actions.grid(row=len(fields), column=0, columnspan=3, sticky="ew", pady=(12, 0))
-        ttk.Button(actions, text="Use 1080p defaults", command=self._set_1080p_calibration).pack(side="left")
-        ttk.Button(actions, text="Use 720p defaults", command=self._set_720p_calibration).pack(side="left", padx=(8, 0))
-        ttk.Button(actions, text="Clear", command=self._clear_calibration).pack(side="left", padx=8)
-        ttk.Button(actions, text="Save", command=lambda: [self._save_settings(), window.destroy()]).pack(side="right")
-
     def _set_1080p_calibration(self) -> None:
         self.stream_resolution.set("1920x1080")
         self.box_profile.set("1080p")
@@ -844,9 +913,19 @@ class CompanionApp(tk.Tk):
         ]:
             variable.set("")
 
-    def _status_row(self, parent: ttk.Widget, row: int, key: str, variable: tk.StringVar) -> None:
+    def _status_row(
+        self, parent: ttk.Widget, row: int, key: str, variable: tk.StringVar,
+        indicator: bool = False,
+    ) -> StatusIndicator | None:
         self._register_translation(ttk.Label(parent, text=self.t(key), style="Muted.TLabel"), key).grid(row=row, column=0, sticky="nw", padx=10, pady=7)
-        ttk.Label(parent, textvariable=variable, wraplength=370).grid(row=row, column=1, sticky="ew", padx=10, pady=7)
+        if indicator:
+            widget = StatusIndicator(parent, textvariable=variable)
+            widget.grid(row=row, column=1, sticky="ew", padx=10, pady=7)
+            return widget
+        ttk.Label(parent, textvariable=variable, wraplength=370).grid(
+            row=row, column=1, sticky="ew", padx=10, pady=7,
+        )
+        return None
 
     def _load_settings(self, data: dict[str, Any] | None = None) -> None:
         data = data if data is not None else self.store.load()
@@ -1021,12 +1100,18 @@ class CompanionApp(tk.Tk):
         self.state_text.set(self.t("running"))
         self.game_text.set(self.t("watching_logs"))
         self.server_text.set(self.t("connecting"))
+        if self.server_indicator:
+            self.server_indicator.set_state("warn")
+        if self.game_indicator:
+            self.game_indicator.set_state("active")
         self._append_log(self.t("publisher_started"))
 
     def _stop(self) -> None:
         if self.stop_event:
             self.stop_event.set()
         self.state_text.set(self.t("stopped"))
+        if self.server_indicator:
+            self.server_indicator.set_state("idle")
         self._append_log(self.t("publisher_stopped"))
 
     def _test_once(self) -> None:
@@ -1070,6 +1155,8 @@ class CompanionApp(tk.Tk):
             }
             self._append_log(json.dumps(preview, ensure_ascii=False, indent=2))
             self.game_text.set(f"OK, {len(templates)} templates loaded")
+            if self.game_indicator:
+                self.game_indicator.set_state("ok")
         except Exception as exc:
             messagebox.showerror(self.t("test_failed"), str(exc))
 
@@ -1084,6 +1171,15 @@ class CompanionApp(tk.Tk):
 
     def _apply_status(self, status: PublishStatus) -> None:
         self.server_text.set("OK" if status.ok else "Error")
+        if self.server_indicator:
+            self.server_indicator.set_state("ok" if status.ok else "error")
+        if self.game_indicator:
+            if status.phase == "error":
+                self.game_indicator.set_state("error")
+            elif status.phase in {"starting", "unknown"}:
+                self.game_indicator.set_state("warn")
+            else:
+                self.game_indicator.set_state("ok")
         self.phase_text.set(status.phase)
         self.board_text.set(
             f"{status.board_count}: {', '.join(status.board_names[:6])}"
