@@ -3,6 +3,8 @@ from types import SimpleNamespace
 from companion.log_companion import (
     BazaarLogState,
     BoxCalibration,
+    LogTailer,
+    LogStatsCollector,
     TemplateInfo,
     build_calibration,
     parse_resolution,
@@ -322,3 +324,82 @@ def test_row_break_can_place_later_sockets_on_second_row():
         "w": 0.1219,
         "h": 0.2083,
     }
+
+
+def test_log_tailer_returns_full_content_on_first_read(tmp_path):
+    log = tmp_path / "Player.log"
+    log.write_text("line one\nline two\n", encoding="utf-8")
+    tailer = LogTailer([log])
+
+    delta = tailer.read_new()
+
+    assert delta.reset is False
+    assert delta.text == "line one\nline two\n"
+
+
+def test_log_tailer_returns_only_delta_on_subsequent_reads(tmp_path):
+    log = tmp_path / "Player.log"
+    log.write_text("first\n", encoding="utf-8")
+    tailer = LogTailer([log])
+    tailer.read_new()
+
+    with log.open("a", encoding="utf-8") as fh:
+        fh.write("second\n")
+    delta = tailer.read_new()
+
+    assert delta.reset is False
+    assert delta.text == "second\n"
+
+
+def test_log_tailer_signals_reset_on_truncation(tmp_path):
+    log = tmp_path / "Player.log"
+    log.write_text("long content that will be truncated\n", encoding="utf-8")
+    tailer = LogTailer([log])
+    tailer.read_new()
+
+    log.write_text("short\n", encoding="utf-8")
+    delta = tailer.read_new()
+
+    assert delta.reset is True
+    assert delta.text == "short\n"
+
+
+def test_log_tailer_buffers_incomplete_trailing_line(tmp_path):
+    log = tmp_path / "Player.log"
+    log.write_text("complete\nincomp", encoding="utf-8")
+    tailer = LogTailer([log])
+
+    delta = tailer.read_new()
+    assert delta.text == "complete\n"
+
+    with log.open("a", encoding="utf-8") as fh:
+        fh.write("lete-now\n")
+    delta = tailer.read_new()
+    assert delta.text == "incomplete-now\n"
+
+
+def test_log_tailer_handles_missing_file_gracefully(tmp_path):
+    log = tmp_path / "nope.log"
+    tailer = LogTailer([log])
+    delta = tailer.read_new()
+    assert delta.text == ""
+    assert delta.reset is False
+
+
+def test_log_stats_collector_matches_summarize_log_text(tmp_path):
+    sample = (
+        "Card Purchased: InstanceId: abc - TemplateId12345678-1234-1234-1234-1234567890ab "
+        "- Target:PlayerSocket_0 - Section:Player\n"
+        "Sold Card xyz for 5 gold\n"
+        "State changed from [MainMenuState] to [PVPCombatState]\n"
+        "Combat simulation completed\n"
+        "Cards Dealt: foo|bar\n"
+    )
+    from companion.log_stats import summarize_log_text
+
+    collector = LogStatsCollector()
+    collector.update(sample)
+    snap = collector.snapshot()
+
+    expected = summarize_log_text(sample)
+    assert snap == expected

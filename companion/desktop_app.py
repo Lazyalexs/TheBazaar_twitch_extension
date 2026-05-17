@@ -33,7 +33,6 @@ def _diag_log(msg: str) -> None:
 from companion.log_companion import (
     build_calibration,
     build_snapshot,
-    build_state,
     compact_json,
     default_cards_cache,
     default_game_dir,
@@ -311,6 +310,7 @@ class PublisherThread(threading.Thread):
                 self.config.game_dir / "Player-prev.log",
                 self.config.game_dir / "Player.log",
             ]
+            from companion.log_companion import BazaarLogState, LogTailer, LogStatsCollector
             seq = 1
             run_id = f"desktop-companion-{int(time.time())}"
             last_payload: bytes | None = None
@@ -332,15 +332,18 @@ class PublisherThread(threading.Thread):
                 )
             )
 
+            tailer = LogTailer(log_paths)
+            state = BazaarLogState(templates, calibration, visual_resolver=visual_resolver)
+            stats_collector = LogStatsCollector()
+
             while not self.stop_event.is_set():
-                log_text = read_log_text(log_paths)
-                stats = summarize_log_text(log_text)
-                state = build_state(
-                    log_text,
-                    templates,
-                    calibration,
-                    visual_resolver=visual_resolver,
-                )
+                delta = tailer.read_new()
+                if delta.reset:
+                    state = BazaarLogState(templates, calibration, visual_resolver=visual_resolver)
+                    stats_collector.reset()
+                state.apply_text(delta.text)
+                stats_collector.update(delta.text)
+                stats = stats_collector.snapshot()
                 payload = state.payload(patch)
                 payload_key = compact_json(payload)
                 now = time.monotonic()

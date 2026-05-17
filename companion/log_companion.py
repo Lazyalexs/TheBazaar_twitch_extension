@@ -109,6 +109,12 @@ class BoxCalibration:
     pad_y: float = 0.0037
 
 
+@dataclass(frozen=True)
+class LogDelta:
+    text: str
+    reset: bool
+
+
 class BazaarLogState:
     def __init__(
         self,
@@ -132,6 +138,13 @@ class BazaarLogState:
         self._apply_spawn(line)
         self._apply_move(line)
         self._apply_dispose(line)
+
+    def apply_text(self, text: str) -> None:
+        """Apply many newline-separated log lines at once."""
+        if not text:
+            return
+        for line in text.splitlines():
+            self.apply_line(line)
 
     def _apply_state(self, line: str) -> None:
         match = STATE_RE.search(line)
@@ -451,6 +464,154 @@ def build_state(
     for line in log_text.splitlines():
         state.apply_line(line)
     return state
+
+
+class LogTailer:
+    """Incrementally reads new content appended to log files.
+
+    Tracks byte offset per file. Returns the delta since the previous
+    read. Detects truncation (file rotated / new match) and signals a
+    reset so callers can rebuild state.
+    """
+
+    def __init__(self, paths: list[Path]) -> None:
+        self.paths = list(paths)
+        self._positions: dict[Path, int] = {}
+        self._buffer: str = ""
+        self._first_read = True
+
+    def reset(self) -> None:
+        self._positions.clear()
+        self._buffer = ""
+        self._first_read = True
+
+    def read_new(self) -> LogDelta:
+        """Read all bytes appended to tracked log files since last call.
+
+        Returns LogDelta(text=..., reset=...). `reset=True` when at
+        least one file was truncated below its previously seen length
+        (i.e. the game started a new match and rotated Player.log) —
+        the caller should rebuild any state derived from the log.
+        """
+        reset = False
+        chunks: list[str] = []
+
+        for path in self.paths:
+            try:
+                stat = path.stat()
+            except (FileNotFoundError, OSError):
+                # file disappeared since last read; drop any tracked offset
+                if path in self._positions:
+                    self._positions.pop(path, None)
+                    reset = True
+                continue
+
+            current_size = stat.st_size
+            last_pos = self._positions.get(path, 0)
+
+            if current_size < last_pos:
+                # truncated -> new match
+                reset = True
+                last_pos = 0
+
+            if current_size == last_pos:
+                # nothing new
+                self._positions[path] = current_size
+                continue
+
+            try:
+                with path.open("rb") as fh:
+                    fh.seek(last_pos)
+                    data = fh.read(current_size - last_pos)
+            except OSError:
+                continue
+
+            self._positions[path] = current_size
+            chunks.append(data.decode("utf-8", errors="replace").replace("\r\n", "\n"))
+
+        text = self._buffer + "".join(chunks)
+        # keep the incomplete trailing line in the buffer; emit only
+        # complete lines so apply_line never sees a half-line.
+        if text and not text.endswith("\n"):
+            last_nl = text.rfind("\n")
+            if last_nl < 0:
+                self._buffer = text
+                text = ""
+            else:
+                self._buffer = text[last_nl + 1:]
+                text = text[: last_nl + 1]
+        else:
+            self._buffer = ""
+
+        if reset:
+            # we may have to redo state from scratch; tell caller to
+            # rebuild but still hand them whatever we have now.
+            return LogDelta(text=text, reset=True)
+        return LogDelta(text=text, reset=False)
+
+
+class LogStatsCollector:
+    """Mutable accumulator that mirrors summarize_log_text incrementally.
+
+    Use update(text) to feed appended chunks. snapshot() returns a
+    frozen LogStats with the running totals.
+    """
+
+    def __init__(self) -> None:
+        self.purchases = 0
+        self.sales = 0
+        self.sold_gold = 0
+        self.combats = 0
+        self.pvp_combats = 0
+        self.combat_completions = 0
+        self.cards_dealt_events = 0
+        self.last_state: str | None = None
+
+    def reset(self) -> None:
+        self.__init__()
+
+    def update(self, text: str) -> None:
+        if not text:
+            return
+        from .log_stats import (
+            COMBAT_START_RE as _COMBAT,
+            SOLD_RE as _SOLD,
+            CARDS_DEALT_RE as _DEALT,
+        )
+        for line in text.splitlines():
+            state_match = STATE_RE.search(line)
+            if state_match:
+                self.last_state = state_match.group(1)
+            purchase_match = PURCHASE_RE.search(line)
+            if purchase_match and purchase_match.group(3).startswith("Player"):
+                self.purchases += 1
+            sold_match = _SOLD.search(line)
+            if sold_match:
+                self.sales += 1
+                self.sold_gold += int(sold_match.group(2))
+            combat_match = _COMBAT.search(line)
+            if combat_match:
+                self.combats += 1
+                if combat_match.group(1) == "PVPCombatState":
+                    self.pvp_combats += 1
+            if "Combat simulation completed" in line:
+                self.combat_completions += 1
+            if _DEALT.search(line):
+                self.cards_dealt_events += 1
+
+    def snapshot(self) -> "LogStats":
+        from .log_stats import LogStats, phase_from_state
+        return LogStats(
+            phase=phase_from_state(self.last_state),
+            purchases=self.purchases,
+            sales=self.sales,
+            sold_gold=self.sold_gold,
+            combats=self.combats,
+            pvp_combats=self.pvp_combats,
+            combat_completions=self.combat_completions,
+            cards_dealt_events=self.cards_dealt_events,
+            last_state=self.last_state,
+        )
 
 
 def normalized_size(size: str | None) -> str:
