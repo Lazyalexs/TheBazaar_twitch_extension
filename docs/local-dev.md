@@ -7,8 +7,21 @@ This mode does not require a domain, certificate, or Twitch secrets.
 ```powershell
 Copy-Item .env.example .env
 python -m venv .venv
-.\.venv\Scripts\python -m pip install -r ebs\requirements-dev.txt
+.\.venv\Scripts\python -m pip install --require-hashes -r ebs\requirements-dev.lock
 ```
+
+The `.lock` files (`ebs/requirements.lock`, `ebs/requirements-dev.lock`) pin
+transitive dependencies with hashes and are the source of truth for both Docker
+builds and local dev. They are generated from the `.txt` specs via `uv`:
+
+```powershell
+uv pip compile --generate-hashes --python-version 3.12 `
+    --output-file ebs\requirements.lock ebs\requirements.txt
+uv pip compile --generate-hashes --python-version 3.12 `
+    --output-file ebs\requirements-dev.lock ebs\requirements-dev.txt
+```
+
+Regenerate the locks whenever `ebs/requirements*.txt` is changed.
 
 The default `.env` values keep the EBS in dry-run mode:
 
