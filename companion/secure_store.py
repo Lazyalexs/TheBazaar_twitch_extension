@@ -112,7 +112,11 @@ class SettingsStore:
         if not self.path.exists():
             return {}
 
-        data = json.loads(self.path.read_text(encoding="utf-8"))
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return {}
+
         if not isinstance(data, dict):
             return {}
 
@@ -134,7 +138,17 @@ class SettingsStore:
         token = str(data.get("token") or "")
         if token:
             clean["tokenDpapi"] = protect_text(token)
-        self.path.write_text(
-            json.dumps(clean, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        content = json.dumps(clean, ensure_ascii=False, indent=2)
+        tmp = self.path.with_suffix(self.path.suffix + ".tmp")
+        try:
+            with open(tmp, "w", encoding="utf-8") as fh:
+                fh.write(content)
+                fh.flush()
+                os.fsync(fh.fileno())
+            os.replace(tmp, self.path)
+        except Exception:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
