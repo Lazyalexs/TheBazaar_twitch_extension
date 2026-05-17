@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import ctypes
 import hashlib
 import io
@@ -267,6 +268,10 @@ class VisualCardResolver:
         self._ref_signatures: dict[str, ImageSignature | None] = {}
         self._resolved: dict[str, VisualMatch] = {}
         self._screen: Image.Image | None = None
+        self._signature_lock = threading.Lock()
+        self._prefetch_thread: threading.Thread | None = None
+        self._prefetch_started = False
+        self._load_signature_cache()
 
     def begin_frame(self) -> None:
         self._screen = None
@@ -353,33 +358,108 @@ class VisualCardResolver:
             self._refs = load_item_refs(self.items_data_path) if self.items_data_path else []
         return self._refs
 
-    def _candidate_signatures(
-        self,
-        candidates: list[ItemArtRef],
-    ) -> list[tuple[ItemArtRef, ImageSignature | None]]:
-        uncached = [
-            ref
-            for ref in candidates
-            if ref.cache_key not in self._ref_signatures
-        ]
-        if uncached:
+    def _signature_cache_path(self) -> Path:
+        return self.cache_dir / "_signatures.json"
+
+    def _load_signature_cache(self) -> None:
+        """Restore previously-computed signatures from disk (best-effort)."""
+        path = self._signature_cache_path()
+        if not path.exists():
+            return
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return
+        if not isinstance(raw, dict):
+            return
+        for cache_key, payload in raw.items():
+            try:
+                if payload is None:
+                    with self._signature_lock:
+                        self._ref_signatures[cache_key] = None
+                    continue
+                pixels = bytes.fromhex(payload["pixels"])
+                histogram = tuple(float(v) for v in payload["histogram"])
+                with self._signature_lock:
+                    self._ref_signatures[cache_key] = ImageSignature(
+                        pixels=pixels, histogram=histogram
+                    )
+            except (KeyError, TypeError, ValueError):
+                continue
+
+    def _save_signature_cache(self) -> None:
+        """Persist current _ref_signatures to disk."""
+        try:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            return
+        with self._signature_lock:
+            snapshot = dict(self._ref_signatures)
+        encoded: dict[str, Any] = {}
+        for key, sig in snapshot.items():
+            if sig is None:
+                encoded[key] = None
+            else:
+                encoded[key] = {
+                    "pixels": sig.pixels.hex(),
+                    "histogram": list(sig.histogram),
+                }
+        tmp = self._signature_cache_path().with_suffix(".json.tmp")
+        try:
+            tmp.write_text(json.dumps(encoded), encoding="utf-8")
+            os.replace(tmp, self._signature_cache_path())
+        except OSError:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+    def _run_prefetch(self) -> None:
+        try:
+            refs = self._load_refs()
+            # split into chunks to allow other threads to interleave
             with ThreadPoolExecutor(max_workers=DOWNLOAD_WORKERS) as executor:
                 futures = {
                     executor.submit(self._signature_for_ref, ref): ref
-                    for ref in uncached
+                    for ref in refs
+                    if ref.cache_key not in self._ref_signatures  # skip already loaded from disk
                 }
                 for future in as_completed(futures):
                     ref = futures[future]
                     try:
-                        self._ref_signatures[ref.cache_key] = future.result()
+                        signature_result = future.result()
                     except Exception:
-                        self._ref_signatures[ref.cache_key] = None
+                        signature_result = None
+                    with self._signature_lock:
+                        self._ref_signatures[ref.cache_key] = signature_result
+            self._save_signature_cache()
+            _vision_log(f"prefetch complete: {len(self._ref_signatures)} signatures cached")
+        except Exception as exc:
+            _vision_log(f"prefetch error: {exc!r}")
 
-        return [
-            (ref, self._ref_signatures.get(ref.cache_key))
-            for ref in candidates
-        ]
+    def _ensure_prefetch_started(self) -> None:
+        if self._prefetch_started:
+            return
+        self._prefetch_started = True
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self._prefetch_thread = threading.Thread(
+            target=self._run_prefetch,
+            name="VisualCardResolver-prefetch",
+            daemon=True,
+        )
+        self._prefetch_thread.start()
+        _vision_log("prefetch thread started")
+
+    def _candidate_signatures(
+        self,
+        candidates: list[ItemArtRef],
+    ) -> list[tuple[ItemArtRef, ImageSignature | None]]:
+        self._ensure_prefetch_started()
+        with self._signature_lock:
+            return [
+                (ref, self._ref_signatures.get(ref.cache_key))
+                for ref in candidates
+            ]
 
     def _signature_for_ref(self, ref: ItemArtRef) -> ImageSignature | None:
         path = self._cache_path(ref)
