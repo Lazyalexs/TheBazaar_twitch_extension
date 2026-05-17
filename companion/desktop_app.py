@@ -401,6 +401,9 @@ class CompanionApp(tk.Tk):
         saved_settings = self.store.load()
 
         self.language = tk.StringVar(value=str(saved_settings.get("language") or "ru"))
+        # (key, widget, attribute) — updated on language change
+        self._translated: list[tuple[str, tk.Widget, str]] = []
+
         self.title(f"{self.t('window_title')} {APP_VERSION}")
         self.geometry("980x720")
         self.minsize(900, 640)
@@ -444,6 +447,11 @@ class CompanionApp(tk.Tk):
         language = self.language.get() if hasattr(self, "language") else "ru"
         return TEXT.get(language, TEXT["ru"]).get(key, TEXT["en"].get(key, key))
 
+    def _register_translation(self, widget: tk.Widget, key: str, attribute: str = "text") -> tk.Widget:
+        """Track widget so its text can be refreshed when language changes."""
+        self._translated.append((key, widget, attribute))
+        return widget
+
     def _configure_style(self) -> None:
         self.configure(bg="#071014")
         style = ttk.Style(self)
@@ -469,8 +477,11 @@ class CompanionApp(tk.Tk):
         ttk.Label(header, text=f"The Bazaar Live Board {APP_VERSION}", style="Title.TLabel").grid(row=0, column=0, sticky="w")
         actions = ttk.Frame(header)
         actions.grid(row=0, column=1, sticky="e", padx=(12, 18))
-        ttk.Label(actions, text=self.t("language")).pack(side="left", padx=(0, 6))
-        language_combo = ttk.Combobox(
+        self._register_translation(
+            ttk.Label(actions, text=self.t("language")), "language"
+        ).pack(side="left", padx=(0, 6))
+
+        language_combo: ttk.Combobox = ttk.Combobox(
             actions,
             textvariable=self.language,
             values=["ru", "en"],
@@ -479,57 +490,57 @@ class CompanionApp(tk.Tk):
         )
         language_combo.pack(side="left", padx=(0, 12))
         language_combo.bind("<<ComboboxSelected>>", self._on_language_change)
-        ttk.Button(actions, text=self.t("save"), command=self._save_settings).pack(side="left")
-        ttk.Button(actions, text=self.t("start"), command=self._start).pack(side="left", padx=(8, 0))
-        ttk.Button(actions, text=self.t("stop"), command=self._stop).pack(side="left", padx=(8, 0))
-        ttk.Button(actions, text=self.t("test_once"), command=self._test_once).pack(side="left", padx=(8, 0))
+        self._register_translation(ttk.Button(actions, text=self.t("save"), command=self._save_settings), "save").pack(side="left")
+        self._register_translation(ttk.Button(actions, text=self.t("start"), command=self._start), "start").pack(side="left", padx=(8, 0))
+        self._register_translation(ttk.Button(actions, text=self.t("stop"), command=self._stop), "stop").pack(side="left", padx=(8, 0))
+        self._register_translation(ttk.Button(actions, text=self.t("test_once"), command=self._test_once), "test_once").pack(side="left", padx=(8, 0))
         ttk.Label(
             header,
             textvariable=self.state_text,
             style="Muted.TLabel",
         ).grid(row=0, column=2, sticky="e")
 
-        settings = ttk.LabelFrame(root, text=self.t("connection"))
+        settings = self._register_translation(ttk.LabelFrame(root, text=self.t("connection")), "connection")
         settings.grid(row=1, column=0, sticky="nsew", padx=(0, 8), pady=(0, 12))
         settings.columnconfigure(1, weight=1)
-        self._field(settings, 0, self.t("ebs_url"), self.ebs_url)
-        self._field(settings, 1, self.t("channel_id"), self.channel_id)
+        self._field(settings, 0, "ebs_url", self.ebs_url)
+        self._field(settings, 1, "channel_id", self.channel_id)
         self._token_field(settings, 2)
 
-        ttk.Label(settings, text=self.t("game_folder")).grid(row=3, column=0, sticky="w", padx=10, pady=6)
+        self._register_translation(ttk.Label(settings, text=self.t("game_folder")), "game_folder").grid(row=3, column=0, sticky="w", padx=10, pady=6)
         game_row = ttk.Frame(settings)
         game_row.grid(row=3, column=1, sticky="ew", padx=10, pady=6)
         game_row.columnconfigure(0, weight=1)
         ttk.Entry(game_row, textvariable=self.game_dir).grid(row=0, column=0, sticky="ew")
-        ttk.Button(game_row, text=self.t("browse"), command=self._browse_game_dir).grid(row=0, column=1, padx=(8, 0))
+        self._register_translation(ttk.Button(game_row, text=self.t("browse"), command=self._browse_game_dir), "browse").grid(row=0, column=1, padx=(8, 0))
 
-        options = ttk.LabelFrame(root, text=self.t("stream"))
+        options = self._register_translation(ttk.LabelFrame(root, text=self.t("stream")), "stream")
         options.grid(row=1, column=1, sticky="nsew", padx=(8, 0), pady=(0, 12))
         options.columnconfigure(1, weight=1)
-        self._combo(options, 0, self.t("resolution"), self.stream_resolution, ["auto", "1920x1080", "1280x720"])
-        self._combo(options, 1, self.t("box_profile"), self.box_profile, ["1080p", "720p", "normalized"])
-        ttk.Checkbutton(
+        self._combo(options, 0, "resolution", self.stream_resolution, ["auto", "1920x1080", "1280x720"])
+        self._combo(options, 1, "box_profile", self.box_profile, ["1080p", "720p", "normalized"])
+        self._register_translation(ttk.Checkbutton(
             options,
             text=self.t("visual_fallback"),
             variable=self.visual_fallback,
-        ).grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(4, 0))
+        ), "visual_fallback").grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(4, 0))
         self._calibration_panel(options, 3)
 
-        ttk.Label(
+        self._register_translation(ttk.Label(
             options,
             text=self.t("token_note"),
             wraplength=360,
             style="Muted.TLabel",
-        ).grid(row=4, column=0, columnspan=2, sticky="ew", padx=10, pady=(8, 4))
+        ), "token_note").grid(row=4, column=0, columnspan=2, sticky="ew", padx=10, pady=(8, 4))
 
-        live = ttk.LabelFrame(root, text=self.t("live_status"))
+        live = self._register_translation(ttk.LabelFrame(root, text=self.t("live_status")), "live_status")
         live.grid(row=2, column=0, sticky="nsew", padx=(0, 8))
         live.columnconfigure(1, weight=1)
-        self._status_row(live, 0, self.t("server"), self.server_text)
-        self._status_row(live, 1, self.t("game"), self.game_text)
-        self._status_row(live, 2, self.t("phase"), self.phase_text)
-        self._status_row(live, 3, self.t("board"), self.board_text)
-        self._status_row(live, 4, self.t("stats"), self.stats_text)
+        self._status_row(live, 0, "server", self.server_text)
+        self._status_row(live, 1, "game", self.game_text)
+        self._status_row(live, 2, "phase", self.phase_text)
+        self._status_row(live, 3, "board", self.board_text)
+        self._status_row(live, 4, "stats", self.stats_text)
 
         diagnostics = ttk.LabelFrame(root, text=self.t("diagnostics"))
         diagnostics.grid(row=2, column=1, sticky="nsew", padx=(8, 0))
@@ -552,18 +563,18 @@ class CompanionApp(tk.Tk):
         self,
         parent: ttk.Widget,
         row: int,
-        label: str,
+        key: str,
         variable: tk.StringVar,
         show: str | None = None,
     ) -> ttk.Entry:
-        ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", padx=10, pady=6)
+        self._register_translation(ttk.Label(parent, text=self.t(key)), key).grid(row=row, column=0, sticky="w", padx=10, pady=6)
         entry = ttk.Entry(parent, textvariable=variable, show=show)
         entry.grid(row=row, column=1, sticky="ew", padx=10, pady=6)
         self._attach_entry_helpers(entry)
         return entry
 
     def _token_field(self, parent: ttk.Widget, row: int) -> None:
-        ttk.Label(parent, text=self.t("companion_token")).grid(row=row, column=0, sticky="w", padx=10, pady=6)
+        self._register_translation(ttk.Label(parent, text=self.t("companion_token")), "companion_token").grid(row=row, column=0, sticky="w", padx=10, pady=6)
         token_row = ttk.Frame(parent)
         token_row.grid(row=row, column=1, sticky="ew", padx=10, pady=6)
         token_row.columnconfigure(0, weight=1)
@@ -571,15 +582,15 @@ class CompanionApp(tk.Tk):
         self.token_entry = ttk.Entry(token_row, textvariable=self.token, show="*")
         self.token_entry.grid(row=0, column=0, sticky="ew")
         self._attach_entry_helpers(self.token_entry)
-        ttk.Button(token_row, text=self.t("paste"), command=self._paste_token).grid(row=0, column=1, padx=(8, 0))
-        ttk.Checkbutton(
+        self._register_translation(ttk.Button(token_row, text=self.t("paste"), command=self._paste_token), "paste").grid(row=0, column=1, padx=(8, 0))
+        self._register_translation(ttk.Checkbutton(
             token_row,
             text=self.t("show"),
             variable=self.show_token,
             command=self._toggle_token_visibility,
-        ).grid(row=0, column=2, padx=(8, 0))
-        ttk.Button(token_row, text=self.t("verify"), command=self._verify_auth).grid(row=1, column=0, sticky="ew", pady=(8, 0))
-        ttk.Button(token_row, text=self.t("register"), command=self._open_registration).grid(row=1, column=1, columnspan=2, sticky="ew", padx=(8, 0), pady=(8, 0))
+        ), "show").grid(row=0, column=2, padx=(8, 0))
+        self._register_translation(ttk.Button(token_row, text=self.t("verify"), command=self._verify_auth), "verify").grid(row=1, column=0, sticky="ew", pady=(8, 0))
+        self._register_translation(ttk.Button(token_row, text=self.t("register"), command=self._open_registration), "register").grid(row=1, column=1, columnspan=2, sticky="ew", padx=(8, 0), pady=(8, 0))
 
     def _attach_entry_helpers(self, entry: ttk.Entry) -> None:
         def edit(action: str) -> str:
@@ -604,6 +615,7 @@ class CompanionApp(tk.Tk):
         menu = tk.Menu(entry, tearoff=False)
         menu.add_command(label="Cut", command=lambda: entry.event_generate("<<Cut>>"))
         menu.add_command(label="Copy", command=lambda: entry.event_generate("<<Copy>>"))
+        # Known limitation: context-menu stays in original language until app restart
         menu.add_command(label=self.t("paste"), command=lambda: entry.event_generate("<<Paste>>"))
         menu.add_separator()
         menu.add_command(label="Select all", command=select_all)
@@ -680,11 +692,11 @@ class CompanionApp(tk.Tk):
         self,
         parent: ttk.Widget,
         row: int,
-        label: str,
+        key: str,
         variable: tk.StringVar,
         values: list[str],
     ) -> None:
-        ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", padx=10, pady=6)
+        self._register_translation(ttk.Label(parent, text=self.t(key)), key).grid(row=row, column=0, sticky="w", padx=10, pady=6)
         ttk.Combobox(parent, textvariable=variable, values=values, state="readonly").grid(
             row=row,
             column=1,
@@ -694,7 +706,7 @@ class CompanionApp(tk.Tk):
         )
 
     def _calibration_panel(self, parent: ttk.Widget, row: int) -> None:
-        panel = ttk.LabelFrame(parent, text=self.t("box_calibration"))
+        panel = self._register_translation(ttk.LabelFrame(parent, text=self.t("box_calibration")), "box_calibration")
         panel.grid(row=row, column=0, columnspan=2, sticky="ew", padx=10, pady=(10, 4))
         for column in range(3):
             panel.columnconfigure(column, weight=1)
@@ -724,14 +736,14 @@ class CompanionApp(tk.Tk):
         actions.grid(row=4, column=0, columnspan=3, sticky="ew", padx=8, pady=(8, 4))
         ttk.Button(actions, text="720p", command=self._set_720p_calibration).pack(side="left")
         ttk.Button(actions, text="1080p", command=self._set_1080p_calibration).pack(side="left", padx=6)
-        ttk.Button(actions, text=self.t("clear"), command=self._clear_calibration).pack(side="left")
+        self._register_translation(ttk.Button(actions, text=self.t("clear"), command=self._clear_calibration), "clear").pack(side="left")
 
-        ttk.Label(
+        self._register_translation(ttk.Label(
             panel,
             text=self.t("calibration_hint"),
             wraplength=420,
             style="Muted.TLabel",
-        ).grid(row=5, column=0, columnspan=3, sticky="ew", padx=8, pady=(0, 8))
+        ), "calibration_hint").grid(row=5, column=0, columnspan=3, sticky="ew", padx=8, pady=(0, 8))
 
     def _calibration_field(
         self,
@@ -829,8 +841,8 @@ class CompanionApp(tk.Tk):
         ]:
             variable.set("")
 
-    def _status_row(self, parent: ttk.Widget, row: int, label: str, variable: tk.StringVar) -> None:
-        ttk.Label(parent, text=label, style="Muted.TLabel").grid(row=row, column=0, sticky="nw", padx=10, pady=7)
+    def _status_row(self, parent: ttk.Widget, row: int, key: str, variable: tk.StringVar) -> None:
+        self._register_translation(ttk.Label(parent, text=self.t(key), style="Muted.TLabel"), key).grid(row=row, column=0, sticky="nw", padx=10, pady=7)
         ttk.Label(parent, textvariable=variable, wraplength=370).grid(row=row, column=1, sticky="ew", padx=10, pady=7)
 
     def _load_settings(self, data: dict[str, Any] | None = None) -> None:
@@ -887,18 +899,30 @@ class CompanionApp(tk.Tk):
     def _on_language_change(self, _event: tk.Event | None = None) -> None:
         if self.language.get() not in TEXT:
             self.language.set("ru")
-        try:
-            self.store.save(self._current_settings_payload())
-        except SecureStoreError as exc:
-            messagebox.showerror(self.t("secure_storage"), str(exc))
-            return
-
         self.title(f"{self.t('window_title')} {APP_VERSION}")
-        for child in self.winfo_children():
-            child.destroy()
-        self._build_ui()
-        self._toggle_token_visibility()
+        self._refresh_translations()
         self._append_log(self.t("language_changed"))
+
+    def _refresh_translations(self) -> None:
+        """Update text on all registered translatable widgets to the current language."""
+        for key, widget, attribute in self._translated:
+            try:
+                widget.configure(**{attribute: self.t(key)})
+            except tk.TclError:
+                pass  # widget destroyed
+        # also refresh static labels via state-vars where applicable
+        if self.state_text.get() in (
+            TEXT["ru"]["stopped"], TEXT["en"]["stopped"],
+            TEXT["ru"]["running"], TEXT["en"]["running"],
+        ):
+            self.state_text.set(
+                self.t("running") if (self.worker and self.worker.is_alive())
+                else self.t("stopped")
+            )
+        if self.server_text.get() in (TEXT["ru"]["not_connected"], TEXT["en"]["not_connected"]):
+            self.server_text.set(self.t("not_connected"))
+        if self.game_text.get() in (TEXT["ru"]["not_checked"], TEXT["en"]["not_checked"]):
+            self.game_text.set(self.t("not_checked"))
 
     def _save_settings(self) -> None:
         try:
