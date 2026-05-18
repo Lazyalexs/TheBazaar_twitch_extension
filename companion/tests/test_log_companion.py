@@ -135,7 +135,7 @@ def test_log_state_can_resolve_unknown_items_with_visual_fallback():
         def begin_frame(self):
             self.began = True
 
-        def match(self, slot, instance_id, size, bbox):
+        def match(self, slot, instance_id, size, bbox, hero=None):
             assert slot == 1
             assert instance_id == "itm_missing"
             assert size == "Small"
@@ -404,3 +404,38 @@ def test_log_stats_collector_matches_summarize_log_text(tmp_path):
 
     expected = summarize_log_text(sample)
     assert snap == expected
+
+
+def test_log_state_captures_hero_from_run_configuration():
+    state = BazaarLogState({})
+    state.apply_line(
+        "[21:11:58.898] [RunConfigurationCache] RunConfigurationCache: Changing EHero to Stelle"
+    )
+    assert state.hero == "stelle"
+
+    # subsequent run change should override
+    state.apply_line(
+        "[22:00:00.000] [RunConfigurationCache] RunConfigurationCache: Changing EHero to Dooley"
+    )
+    assert state.hero == "dooley"
+
+
+def test_log_state_propagates_hero_to_visual_resolver():
+    captured = {}
+
+    class FakeResolver:
+        def begin_frame(self): pass
+        def match(self, slot, instance_id, size, bbox, hero=None):
+            captured["hero"] = hero
+            return None
+
+    state = BazaarLogState({}, visual_resolver=FakeResolver())
+    state.apply_line(
+        "[21:11:58] [RunConfigurationCache] RunConfigurationCache: Changing EHero to Stelle"
+    )
+    state.apply_line(
+        "[21:12:09] [GameSimHandler] Cards Spawned: [itm_To-fusc [Player] [Hand] [Socket_3] [Small] | "
+    )
+    # build payload to trigger _visual_match for unknown items
+    state.payload("5.0.0")
+    assert captured.get("hero") == "stelle"

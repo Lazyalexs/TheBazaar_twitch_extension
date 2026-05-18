@@ -46,6 +46,7 @@ class ItemArtRef:
     cooldown: float | None
     image_url: str
     cache_key: str
+    heroes: tuple[str, ...] = ()   # lowercase, e.g. ('stelle',) or ('common',)
 
 
 @dataclass(frozen=True)
@@ -106,6 +107,12 @@ def load_item_refs(path: Path) -> list[ItemArtRef]:
             continue
         cache_key = str(item.get("cardId") or item.get("id") or title)
         cooldown = item.get("cooldown")
+        heroes_raw = item.get("heroes") or []
+        heroes = tuple(
+            str(h).strip().lower()
+            for h in heroes_raw
+            if isinstance(h, str) and h.strip()
+        )
         refs.append(
             ItemArtRef(
                 title=title,
@@ -114,6 +121,7 @@ def load_item_refs(path: Path) -> list[ItemArtRef]:
                 cooldown=float(cooldown) if isinstance(cooldown, (int, float)) else None,
                 image_url=image_url,
                 cache_key=cache_key,
+                heroes=heroes,
             )
         )
     return refs
@@ -282,6 +290,7 @@ class VisualCardResolver:
         instance_id: str,
         size: str,
         bbox: dict[str, Any],
+        hero: str | None = None,
     ) -> VisualMatch | None:
         if instance_id in self._resolved:
             return self._resolved[instance_id]
@@ -306,6 +315,19 @@ class VisualCardResolver:
         candidates = [ref for ref in all_refs if ref.size == wanted_size]
         if not candidates:
             candidates = all_refs
+
+        # hero filter — keep items for this hero + 'common', fall back if empty
+        if hero:
+            hero_norm = hero.strip().lower()
+            narrowed = [
+                ref for ref in candidates
+                if hero_norm in ref.heroes or 'common' in ref.heroes
+            ]
+            if narrowed:
+                _vision_log(
+                    f"hero={hero_norm}: pool {len(candidates)} -> {len(narrowed)}"
+                )
+                candidates = narrowed
 
         target_signatures = [signature(variant) for variant in crop_variants(crop)]
         best_ref: ItemArtRef | None = None

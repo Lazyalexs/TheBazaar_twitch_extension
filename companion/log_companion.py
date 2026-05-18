@@ -41,6 +41,7 @@ MOVE_TO_RE = re.compile(
 MOVE_SIMPLE_RE = re.compile(r"Successfully moved card ([^\s]+) to Socket_(\d+)")
 DISPOSED_RE = re.compile(r"Cards Disposed: (.*)")
 STATE_RE = re.compile(r"State changed from \[[^\]]+\] to \[([^\]]+)\]")
+HERO_RE = re.compile(r"Changing\s+EHero\s+to\s+(\w+)")
 
 ITEM_SIZES = {"small", "medium", "large"}
 UNKNOWN_ITEM_PREFIX = "unknown:"
@@ -131,9 +132,11 @@ class BazaarLogState:
         self.opponent_board: dict[int, str] = {}
         self.stash: dict[int, str] = {}
         self.phase = "unknown"
+        self.hero: str | None = None
 
     def apply_line(self, line: str) -> None:
         self._apply_state(line)
+        self._apply_hero(line)
         self._apply_purchase(line)
         self._apply_spawn(line)
         self._apply_move(line)
@@ -163,6 +166,11 @@ class BazaarLogState:
             self.board.clear()
             self.opponent_board.clear()
             self.stash.clear()
+
+    def _apply_hero(self, line: str) -> None:
+        match = HERO_RE.search(line)
+        if match:
+            self.hero = match.group(1).lower()
 
     def _apply_purchase(self, line: str) -> None:
         match = PURCHASE_RE.search(line)
@@ -378,7 +386,7 @@ class BazaarLogState:
         if self.visual_resolver is None:
             return None
         try:
-            result = self.visual_resolver.match(slot, instance_id, size, bbox)
+            result = self.visual_resolver.match(slot, instance_id, size, bbox, hero=self.hero)
             if result is None:
                 _companion_log(f"visual_match slot={slot} id={instance_id}: NO MATCH")
             return result
