@@ -6,10 +6,7 @@ from companion import vision_matcher as vm
 
 
 def image_signature(pixel_value: int) -> vm.ImageSignature:
-    return vm.ImageSignature(
-        pixels=bytes([pixel_value]) * (vm.IMAGE_SIZE[0] * vm.IMAGE_SIZE[1]),
-        histogram=(0.0,) * 24,
-    )
+    return vm.ImageSignature(phash=pixel_value)
 
 
 def visual_resolver(
@@ -51,7 +48,8 @@ def visual_resolver(
 
 
 def test_visual_resolver_rejects_ambiguous_matches(tmp_path, monkeypatch):
-    resolver = visual_resolver(tmp_path, monkeypatch, [20, 24])
+    # Values 3 (popcnt=2) and 5 (popcnt=2) give equal Hamming distances from 0
+    resolver = visual_resolver(tmp_path, monkeypatch, [3, 5])
 
     match = resolver.match(0, "itm_test", "Small", {"x": 0, "y": 0, "w": 1, "h": 1})
 
@@ -60,7 +58,8 @@ def test_visual_resolver_rejects_ambiguous_matches(tmp_path, monkeypatch):
 
 
 def test_visual_resolver_accepts_unambiguous_matches(tmp_path, monkeypatch):
-    resolver = visual_resolver(tmp_path, monkeypatch, [20, 70])
+    # Value 1 (popcnt=1) vs 15 (popcnt=4): margin = (4-1)/64 = 0.046875 >= 0.035
+    resolver = visual_resolver(tmp_path, monkeypatch, [1, 15])
 
     match = resolver.match(0, "itm_test", "Small", {"x": 0, "y": 0, "w": 1, "h": 1})
 

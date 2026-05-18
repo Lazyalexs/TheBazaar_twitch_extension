@@ -51,8 +51,7 @@ class ItemArtRef:
 
 @dataclass(frozen=True)
 class ImageSignature:
-    pixels: bytes
-    histogram: tuple[float, ...]
+    phash: int  # 64-bit dHash perceptual fingerprint
 
 
 @dataclass(frozen=True)
@@ -234,30 +233,23 @@ def crop_variants(image: Image.Image) -> list[Image.Image]:
 
 def signature(image: Image.Image) -> ImageSignature:
     prepared = ImageOps.exif_transpose(image).convert("RGB")
-    fitted = ImageOps.fit(prepared, IMAGE_SIZE, _resample_filter(), centering=(0.5, 0.45))
+    fitted = ImageOps.fit(prepared, (9, 8), _resample_filter(), centering=(0.5, 0.45))
     gray = ImageOps.grayscale(fitted)
-    histogram = [0] * 24
-    total = IMAGE_SIZE[0] * IMAGE_SIZE[1]
-    for red, green, blue in fitted.getdata():
-        histogram[red // 32] += 1
-        histogram[8 + green // 32] += 1
-        histogram[16 + blue // 32] += 1
-    return ImageSignature(
-        pixels=gray.tobytes(),
-        histogram=tuple(value / total for value in histogram),
-    )
+    pixels = list(gray.getdata())
+    bits = 0
+    for row in range(8):
+        base = row * 9
+        for col in range(8):
+            left = pixels[base + col]
+            right = pixels[base + col + 1]
+            if left > right:
+                bits |= (1 << (row * 8 + col))
+    return ImageSignature(phash=bits)
 
 
 def signature_distance(left: ImageSignature, right: ImageSignature) -> float:
-    pixel_delta = sum(
-        abs(a - b)
-        for a, b in zip(left.pixels, right.pixels)
-    ) / (255 * len(left.pixels))
-    histogram_delta = sum(
-        abs(a - b)
-        for a, b in zip(left.histogram, right.histogram)
-    ) / 6
-    return pixel_delta * 0.55 + histogram_delta * 0.45
+    """Hamming distance between dHashes, normalized to [0, 1]."""
+    return bin(left.phash ^ right.phash).count("1") / 64.0
 
 
 class VisualCardResolver:
@@ -265,8 +257,8 @@ class VisualCardResolver:
         self,
         items_data_path: Path | None = None,
         cache_dir: Path | None = None,
-        threshold: float = 0.40,
-        ambiguity_margin: float = 0.035,
+        threshold: float = 0.30,
+        ambiguity_margin: float = 0.015,
     ) -> None:
         self.items_data_path = items_data_path or default_items_data_path()
         self.cache_dir = cache_dir or default_cache_dir()
@@ -381,7 +373,7 @@ class VisualCardResolver:
         return self._refs
 
     def _signature_cache_path(self) -> Path:
-        return self.cache_dir / "_signatures.json"
+        return self.cache_dir / "_signatures_v2.json"
 
     def _load_signature_cache(self) -> None:
         """Restore previously-computed signatures from disk (best-effort)."""
@@ -400,12 +392,11 @@ class VisualCardResolver:
                     with self._signature_lock:
                         self._ref_signatures[cache_key] = None
                     continue
-                pixels = bytes.fromhex(payload["pixels"])
-                histogram = tuple(float(v) for v in payload["histogram"])
+                phash = payload.get("phash")
+                if not isinstance(phash, int):
+                    continue  # old-format entry, skip; will be regenerated
                 with self._signature_lock:
-                    self._ref_signatures[cache_key] = ImageSignature(
-                        pixels=pixels, histogram=histogram
-                    )
+                    self._ref_signatures[cache_key] = ImageSignature(phash=int(phash))
             except (KeyError, TypeError, ValueError):
                 continue
 
@@ -422,10 +413,7 @@ class VisualCardResolver:
             if sig is None:
                 encoded[key] = None
             else:
-                encoded[key] = {
-                    "pixels": sig.pixels.hex(),
-                    "histogram": list(sig.histogram),
-                }
+                encoded[key] = {"phash": sig.phash}
         tmp = self._signature_cache_path().with_suffix(".json.tmp")
         try:
             tmp.write_text(json.dumps(encoded), encoding="utf-8")
@@ -505,5 +493,5 @@ class VisualCardResolver:
 
 def confidence_from_scores(score: float, margin: float, threshold: float) -> float:
     threshold_room = max(0.0, min(1.0, 1.0 - (score / max(threshold, 0.0001))))
-    margin_room = max(0.0, min(1.0, margin / 0.12))
+    margin_room = max(0.0, min(1.0, margin / 0.06))  # 0.06 = ~4 bit advantage = strong
     return round(0.82 + (threshold_room * 0.1) + (margin_room * 0.08), 2)
