@@ -5,6 +5,19 @@ Push-Location $repoRoot
 try {
   $venvPython = Join-Path $repoRoot '.venv\Scripts\python.exe'
   $python = if (Test-Path $venvPython) { $venvPython } else { 'python' }
+
+  $node = Get-Command node -ErrorAction SilentlyContinue
+  if ($node) {
+    Write-Host "Syncing items.min.json from bazaardb..."
+    try {
+      & $node.Source 'tools\sync-bazaardb-data.mjs'
+    } catch {
+      Write-Host "WARN: bazaardb sync failed, using existing data: $_"
+    }
+  } else {
+    Write-Host "node not found - skipping bazaardb sync, will use existing extension\data\items.min.json"
+  }
+
   $itemsData = Resolve-Path (Join-Path $repoRoot 'extension\data\items.min.json')
   $icon = Resolve-Path (Join-Path $repoRoot 'extension\image\favicon.ico')
 
